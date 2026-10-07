@@ -1,0 +1,52 @@
+{
+  "app": {
+    "name": "LSE Spots",
+    "unofficial": "Unofficial",
+    "disclaimer": "Student-built, not affiliated with LSE. Estimates only.",
+    "offlineBanner": "Offline. Showing data from {time}."
+  },
+  "home": {
+    "heroCount": "{count} spaces have seats",
+    "heroCountOne": "1 space has seats",
+    "heroCountZero": "Everything is full",
+    "heroSubline": "Right now, reported by students.",
+    "filters": {
+      "all": "All",
+      "quiet": "Quiet",
+      "group": "Group"
+    },
+    "sections": {
+      "plenty": "Plenty of seats",
+      "filling_up": "Filling up",
+      "full": "Full"
+    },
+    "closedPrefix": "Closed now: ",
+    "closedItem": "{name} (opens {time})",
+    "predictionTag": "Usual level",
+    "predictionNote": "No reports in the last 90 minutes, so this is the usual level for now.",
+    "correctionHint": "Looks wrong? Scan the QR code at the spot to correct it."
+  },
+  "attributes": {
+    "silent": "Silent",
+    "quiet": "Quiet",
+    "social": "Talking is fine",
+    "power": "Power",
+    "groupTables": "Group tables",
+    "pcs": "PCs"
+  },
+  "report": {
+    "question": "How busy is it?",
+    "plenty": "Plenty of seats",
+    "filling_up": "Filling up",
+    "full": "Full",
+    "subtitle": "No sign-up. Takes 3 seconds.",
+    "thanksHeading": "Thanks!",
+    "thanksStatus": "You said {space} is {status}.",
+    "seeFreeSpaces": "See free spaces",
+    "changeAnswer": "Wrong button? Change answer",
+    "invalidToken": "This code is out of date. Ask the library desk, or open the app to find the space you are in.",
+    "openApp": "Open the app",
+    "rateLimited": "You already reported here. You can report again in {mins} min.",
+    "spaceClosed": "This space is closed. It opens at {time}."
+  }
+}
