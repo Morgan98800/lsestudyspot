@@ -1,7 +1,6 @@
 'use client';
 
 import React from 'react';
-import { VolumeX, Volume2, MessageSquare, Zap, Monitor } from 'lucide-react';
 import { ZoneWithEstimate } from '@/types/database';
 import { StatusSquare } from './StatusIcon';
 import { HourlyChart } from './HourlyChart';
@@ -14,31 +13,6 @@ interface SpaceRowProps {
 
 export function SpaceRow({ zone, isOpen, onToggle }: SpaceRowProps) {
   const { estimate } = zone;
-
-  const getNoiseLabel = (noise: 'silent' | 'quiet' | 'social') => {
-    if (noise === 'silent') {
-      return (
-        <span className="inline-flex items-center gap-1.5 text-xs text-[var(--ink-2)]">
-          <VolumeX className="w-4 h-4 text-blue-500 shrink-0" aria-hidden="true" />
-          <span>Silent</span>
-        </span>
-      );
-    }
-    if (noise === 'quiet') {
-      return (
-        <span className="inline-flex items-center gap-1.5 text-xs text-[var(--ink-2)]">
-          <Volume2 className="w-4 h-4 text-cyan-500 shrink-0" aria-hidden="true" />
-          <span>Quiet</span>
-        </span>
-      );
-    }
-    return (
-      <span className="inline-flex items-center gap-1.5 text-xs text-[var(--ink-2)]">
-        <MessageSquare className="w-4 h-4 text-amber-500 shrink-0" aria-hidden="true" />
-        <span>Talking is fine</span>
-      </span>
-    );
-  };
 
   const getScreenReaderLabel = () => {
     const statusText =
@@ -91,24 +65,6 @@ export function SpaceRow({ zone, isOpen, onToggle }: SpaceRowProps) {
           aria-labelledby={`row-${zone.id}`}
           className="px-4 pb-5 pt-2 bg-[var(--surface)] flex flex-col gap-3.5 animate-in fade-in duration-150"
         >
-          {/* Attributes Row */}
-          <div className="flex flex-wrap items-center gap-y-2 gap-x-4 pt-1">
-            {getNoiseLabel(zone.noise)}
-
-            {zone.has_power && (
-              <span className="inline-flex items-center gap-1.5 text-xs text-[var(--ink-2)]">
-                <Zap className="w-4 h-4 text-amber-500 shrink-0" aria-hidden="true" />
-                <span>Power</span>
-              </span>
-            )}
-
-            {zone.has_pcs && (
-              <span className="inline-flex items-center gap-1.5 text-xs text-[var(--ink-2)]">
-                <Monitor className="w-4 h-4 text-purple-500 shrink-0" aria-hidden="true" />
-                <span>PCs</span>
-              </span>
-            )}
-          </div>
 
           {/* Prediction banner if prediction */}
           {estimate.is_predicted && (

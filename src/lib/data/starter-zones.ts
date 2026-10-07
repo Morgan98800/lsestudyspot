@@ -9,8 +9,6 @@ export const STARTER_ZONES: Zone[] = [
     building: 'Lionel Robbins Building',
     floor: 'Floor 1',
     noise: 'quiet',
-    has_power: true,
-    has_pcs: true,
     opening_hours: {
       mon: { open: '08:30', close: '00:00' },
       tue: { open: '08:30', close: '00:00' },
@@ -35,8 +33,6 @@ export const STARTER_ZONES: Zone[] = [
     building: 'Lionel Robbins Building',
     floor: 'Floor 2',
     noise: 'quiet',
-    has_power: true,
-    has_pcs: false,
     opening_hours: {
       mon: { open: '08:30', close: '00:00' },
       tue: { open: '08:30', close: '00:00' },
@@ -61,8 +57,6 @@ export const STARTER_ZONES: Zone[] = [
     building: 'Lionel Robbins Building',
     floor: 'Floor 3',
     noise: 'silent',
-    has_power: true,
-    has_pcs: false,
     opening_hours: {
       mon: { open: '08:30', close: '00:00' },
       tue: { open: '08:30', close: '00:00' },
@@ -86,8 +80,6 @@ export const STARTER_ZONES: Zone[] = [
     building: 'Saw Swee Hock',
     floor: 'Floor 2',
     noise: 'quiet',
-    has_power: true,
-    has_pcs: false,
     opening_hours: {
       mon: { open: '08:00', close: '22:00' },
       tue: { open: '08:00', close: '22:00' },
@@ -111,8 +103,6 @@ export const STARTER_ZONES: Zone[] = [
     building: 'Marshall Building',
     floor: 'Ground floor',
     noise: 'social',
-    has_power: true,
-    has_pcs: false,
     opening_hours: {
       mon: { open: '07:30', close: '22:30' },
       tue: { open: '07:30', close: '22:30' },
@@ -136,8 +126,6 @@ export const STARTER_ZONES: Zone[] = [
     building: 'New Academic Building',
     floor: 'Floor 2',
     noise: 'quiet',
-    has_power: true,
-    has_pcs: false,
     opening_hours: {
       mon: { open: '08:30', close: '21:00' },
       tue: { open: '08:30', close: '21:00' },
@@ -161,8 +149,6 @@ export const STARTER_ZONES: Zone[] = [
     building: 'Centre Building',
     floor: 'Ground floor',
     noise: 'social',
-    has_power: true,
-    has_pcs: false,
     opening_hours: {
       mon: { open: '08:00', close: '21:00' },
       tue: { open: '08:00', close: '21:00' },
@@ -186,8 +172,6 @@ export const STARTER_ZONES: Zone[] = [
     building: 'Old Building',
     floor: 'Floor 1',
     noise: 'silent',
-    has_power: false,
-    has_pcs: false,
     opening_hours: {
       mon: { open: '09:00', close: '18:00' },
       tue: { open: '09:00', close: '18:00' },

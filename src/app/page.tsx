@@ -3,7 +3,7 @@ import { computeZoneEstimate } from '@/lib/algo/estimate';
 import { HomeView } from '@/components/HomeView';
 import { ZoneWithEstimate } from '@/types/database';
 
-export const revalidate = 10;
+export const dynamic = 'force-dynamic';
 
 export default async function HomePage() {
   const [zones, reports] = await Promise.all([

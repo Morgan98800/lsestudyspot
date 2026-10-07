@@ -38,8 +38,66 @@ export function formatFreshness(reportDate: Date, now: Date = new Date()): strin
   return `${hours}h ago`;
 }
 
+export interface LondonDateTime {
+  weekdayKey: 'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat';
+  weekdayIndex: number;
+  hour: number;
+  minute: number;
+  minutesSinceMidnight: number;
+  formattedTime: string;
+}
+
 /**
- * Check if a zone is currently open
+ * Compute current time in Europe/London timezone (BST / GMT aware)
+ */
+export function getLondonTime(date: Date = new Date()): LondonDateTime {
+  const formatter = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Europe/London',
+    weekday: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+    hourCycle: 'h23',
+  });
+
+  const parts = formatter.formatToParts(date);
+  let weekdayStr = '';
+  let hour = 0;
+  let minute = 0;
+
+  for (const part of parts) {
+    if (part.type === 'weekday') weekdayStr = part.value.toLowerCase().slice(0, 3);
+    if (part.type === 'hour') hour = parseInt(part.value, 10);
+    if (part.type === 'minute') minute = parseInt(part.value, 10);
+  }
+
+  const days: Array<'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat'> = [
+    'sun',
+    'mon',
+    'tue',
+    'wed',
+    'thu',
+    'fri',
+    'sat',
+  ];
+
+  const idx = days.indexOf(weekdayStr as any);
+  const weekdayIndex = idx >= 0 ? idx : 1;
+  const weekdayKey = days[weekdayIndex] || 'mon';
+  const minutesSinceMidnight = hour * 60 + minute;
+  const formattedTime = `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`;
+
+  return {
+    weekdayKey,
+    weekdayIndex,
+    hour,
+    minute,
+    minutesSinceMidnight,
+    formattedTime,
+  };
+}
+
+/**
+ * Check if a zone is currently open, evaluated in Europe/London timezone
  */
 export function checkZoneOpen(
   openingHours: Zone['opening_hours'],
@@ -49,29 +107,42 @@ export function checkZoneOpen(
     return { isOpen: true }; // Open by default if unconstrained
   }
 
-  const days = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
-  const dayKey = days[now.getDay()];
-  const todaySchedule: DayHours | undefined = openingHours[dayKey];
+  const days: Array<'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat'> = [
+    'sun',
+    'mon',
+    'tue',
+    'wed',
+    'thu',
+    'fri',
+    'sat',
+  ];
+
+  const london = getLondonTime(now);
+  const todaySchedule: DayHours | undefined = openingHours[london.weekdayKey];
 
   if (!todaySchedule || todaySchedule.is_closed) {
     // Check next open day
     for (let i = 1; i <= 7; i++) {
-      const nextKey = days[(now.getDay() + i) % 7];
+      const nextKey = days[(london.weekdayIndex + i) % 7];
       const nextSched = openingHours[nextKey];
       if (nextSched && !nextSched.is_closed) {
         return { isOpen: false, opensAt: nextSched.open };
       }
     }
-    return { isOpen: false, opensAt: '08:30' };
+    return { isOpen: false, opensAt: '08:00' };
   }
 
-  const currentMinutes = now.getHours() * 60 + now.getMinutes();
   const [openH, openM] = todaySchedule.open.split(':').map((x) => parseInt(x, 10));
   const [closeH, closeM] = todaySchedule.close.split(':').map((x) => parseInt(x, 10));
 
   const openMinutes = openH * 60 + openM;
+  // 00:00 close means midnight at end of day (24:00 = 1440 min)
   const closeMinutes = closeH === 0 && closeM === 0 ? 24 * 60 : closeH * 60 + closeM;
 
+  const currentMinutes = london.minutesSinceMidnight;
+
+  // Open strictly between [openMinutes, closeMinutes)
+  // e.g. open at 08:00 means closed at 07:59, open at 08:00
   if (currentMinutes >= openMinutes && currentMinutes < closeMinutes) {
     return { isOpen: true };
   }
@@ -80,10 +151,16 @@ export function checkZoneOpen(
     return { isOpen: false, opensAt: todaySchedule.open };
   }
 
-  // After closing, look for tomorrow
-  const tomorrowKey = days[(now.getDay() + 1) % 7];
-  const tomorrowSched = openingHours[tomorrowKey];
-  return { isOpen: false, opensAt: tomorrowSched?.open || '08:30' };
+  // After closing, look for the next open day starting from tomorrow
+  for (let i = 1; i <= 7; i++) {
+    const nextKey = days[(london.weekdayIndex + i) % 7];
+    const nextSched = openingHours[nextKey];
+    if (nextSched && !nextSched.is_closed) {
+      return { isOpen: false, opensAt: nextSched.open };
+    }
+  }
+
+  return { isOpen: false, opensAt: todaySchedule.open };
 }
 
 /**
@@ -92,7 +169,7 @@ export function checkZoneOpen(
  */
 export function generateInsightText(
   hourlyStats: HourlyStat[],
-  currentHour: number = new Date().getHours()
+  currentHour: number = getLondonTime().hour
 ): string {
   if (!hourlyStats || hourlyStats.length === 0) {
     return 'Usually busiest 12:00 to 15:00. Usually calmer from 18:00.';
@@ -141,9 +218,10 @@ export function computeZoneEstimate(
   hourlyStats: HourlyStat[],
   now: Date = new Date()
 ): ZoneEstimate {
+  const london = getLondonTime(now);
   const openCheck = checkZoneOpen(zone.opening_hours, now);
-  const currentHour = now.getHours();
-  const currentWeekday = now.getDay();
+  const currentHour = london.hour;
+  const currentWeekday = london.weekdayIndex;
 
   // 14 bars (08:00 to 21:00)
   const hourlyBars = Array.from({ length: 14 }).map((_, idx) => {

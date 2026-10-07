@@ -128,7 +128,7 @@ export function HomeView({ initialZones }: HomeViewProps) {
   };
 
   return (
-    <div className="max-w-xl mx-auto px-4 pt-18 pb-10">
+    <div className="max-w-xl mx-auto px-4 pt-18 pb-[calc(96px+env(safe-area-inset-bottom,0px))]">
       {/* 1. HERO */}
       <section className="pt-4 pb-6" aria-label="Current seat summary">
         <h1 className="text-3xl sm:text-4xl font-extrabold font-heading text-[var(--ink)] tracking-tight">

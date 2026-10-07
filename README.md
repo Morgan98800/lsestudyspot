@@ -39,8 +39,8 @@ The product adheres strictly to two entry points, each with one single job:
 ## 📐 Design & Product Rules
 - **The Answer Comes First**: On the home page, the first thing under the header is the answer ("X spaces have seats").
 - **Single Filter**: One toggle switch labelled "Quiet spaces only" (`role="switch"`, `aria-checked`). When on, shows only zones with `noise = silent` or `quiet`. Default off. Switch is brand red when on. This is the ONLY filter.
-- **Attributes on Accordion Row**: Silent / Quiet / Talking is fine, Power, PCs.
-- **Strict Scope Boundaries**: Do not add search, building selectors, walking times, confidence badges, tag rows, "view spot" buttons, group-room or booking features, or extra filters. They were deliberately removed. Do not integrate with LSE's room booking system.
+- **Accordion Content**: Expanded row displays only the prediction note (if prediction), the usual-busy sentence, the 14-bar hourly chart, and the "Looks wrong?" line.
+- **Strict Scope Boundaries**: Do not add search, building selectors, walking times, confidence badges, tag rows, "view spot" buttons, group-room or booking features, attribute tags (power, PCs, quiet), or extra filters. They were deliberately removed. Do not integrate with LSE's room booking system.
 
 ---
 

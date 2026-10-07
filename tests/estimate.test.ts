@@ -46,8 +46,6 @@ describe('Live Estimate & Prediction Tests', () => {
       building: 'Lionel Robbins Building',
       floor: 'Floor 2',
       noise: 'quiet',
-      has_power: true,
-      has_pcs: false,
       opening_hours: null,
       is_active: true,
       qr_token: 'tok-1',

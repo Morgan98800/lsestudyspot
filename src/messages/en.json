@@ -22,13 +22,6 @@
     "predictionNote": "No reports in the last 90 minutes, so this is the usual level for now.",
     "correctionHint": "Looks wrong? Scan the QR code at the spot to correct it."
   },
-  "attributes": {
-    "silent": "Silent",
-    "quiet": "Quiet",
-    "social": "Talking is fine",
-    "power": "Power",
-    "pcs": "PCs"
-  },
   "report": {
     "question": "How busy is it?",
     "plenty": "Plenty of seats",
