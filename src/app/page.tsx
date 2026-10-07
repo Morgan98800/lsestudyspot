@@ -1,3 +1,4 @@
+import { cookies } from 'next/headers';
 import { SpotsRepository } from '@/lib/db/repository';
 import { computeZoneEstimate } from '@/lib/algo/estimate';
 import { HomeView } from '@/components/HomeView';
@@ -5,13 +6,28 @@ import { ZoneWithEstimate } from '@/types/database';
 
 export const dynamic = 'force-dynamic';
 
-export default async function HomePage() {
-  const [zones, reports] = await Promise.all([
+export default async function HomePage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ now?: string }>;
+}) {
+  const sp = searchParams ? await searchParams : {};
+  const cookieStore = await cookies();
+  const cookieNow = cookieStore.get('mock_now')?.value;
+
+  const [zones, reports, sends] = await Promise.all([
     SpotsRepository.getZones(true),
     SpotsRepository.getAllRecentReports(90),
+    SpotsRepository.getRecentRecommendationSends(15),
   ]);
 
-  const now = new Date();
+  const now = sp.now
+    ? new Date(sp.now)
+    : cookieNow
+    ? new Date(cookieNow)
+    : process.env.PLAYWRIGHT_TEST_TIME
+    ? new Date(process.env.PLAYWRIGHT_TEST_TIME)
+    : new Date();
 
   const zonesWithEstimates: ZoneWithEstimate[] = await Promise.all(
     zones.map(async (zone) => {
@@ -25,5 +41,5 @@ export default async function HomePage() {
     })
   );
 
-  return <HomeView initialZones={zonesWithEstimates} />;
+  return <HomeView initialZones={zonesWithEstimates} initialSends={sends} />;
 }

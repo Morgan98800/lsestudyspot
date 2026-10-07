@@ -3,10 +3,18 @@ import { STARTER_ZONES } from '../data/starter-zones';
 import { generateSeedReports } from '../data/seed-reports';
 import { isSupabaseConfigured, supabase } from './supabase';
 
+export interface RecommendationEvent {
+  id: string;
+  zone_id: string;
+  created_at: string;
+  device_hash: string;
+}
+
 interface InMemoryStore {
   zones: Zone[];
   reports: Report[];
   hourlyStats: HourlyStat[];
+  recommendationEvents: RecommendationEvent[];
 }
 
 declare global {
@@ -52,7 +60,7 @@ function initializeStore(): InMemoryStore {
   const reports = generateSeedReports(new Date());
   const hourlyStats = computeHourlyStats(reports);
 
-  const store = { zones, reports, hourlyStats };
+  const store = { zones, reports, hourlyStats, recommendationEvents: [] };
   global.__lseSpotsSimpleStore = store;
   return store;
 }
@@ -228,5 +236,46 @@ export class SpotsRepository {
       volume[r.zone_id] = (volume[r.zone_id] || 0) + 1;
     }
     return volume;
+  }
+
+  static async recordRecommendationSend(zoneId: string, deviceHash: string): Promise<void> {
+    const event: RecommendationEvent = {
+      id: 'rec_' + Math.random().toString(36).substring(2, 11),
+      zone_id: zoneId,
+      created_at: new Date().toISOString(),
+      device_hash: deviceHash,
+    };
+
+    if (!this.store.recommendationEvents) {
+      this.store.recommendationEvents = [];
+    }
+    this.store.recommendationEvents.push(event);
+
+    if (isSupabaseConfigured && supabase) {
+      try {
+        await supabase.from('recommendation_events').insert(event);
+      } catch (err) {
+        console.error('Failed to log recommendation event to supabase:', err);
+      }
+    }
+  }
+
+  static async getRecentRecommendationSends(cutoffMinutes = 15): Promise<Record<string, number>> {
+    const now = Date.now();
+    const cutoffTime = now - cutoffMinutes * 60 * 1000;
+    const result: Record<string, number> = {};
+
+    const events = this.store.recommendationEvents || [];
+    for (const e of events) {
+      const eventTime = new Date(e.created_at).getTime();
+      if (eventTime >= cutoffTime) {
+        const ageMinutes = Math.max(0, (now - eventTime) / (60 * 1000));
+        // Exponential decay with 15 min half-life
+        const weight = Math.pow(0.5, ageMinutes / 15);
+        result[e.zone_id] = (result[e.zone_id] || 0) + weight;
+      }
+    }
+
+    return result;
   }
 }

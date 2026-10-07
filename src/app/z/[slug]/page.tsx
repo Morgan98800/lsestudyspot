@@ -1,12 +1,13 @@
 import { notFound } from 'next/navigation';
 import { Metadata } from 'next';
+import { cookies } from 'next/headers';
 import { SpotsRepository } from '@/lib/db/repository';
 import { QRReportFlow } from '@/components/QRReportFlow';
 import { checkZoneOpen } from '@/lib/algo/estimate';
 
 interface ZonePageProps {
   params: Promise<{ slug: string }>;
-  searchParams: Promise<{ t?: string }>;
+  searchParams: Promise<{ t?: string; now?: string }>;
 }
 
 export async function generateMetadata({ params }: ZonePageProps): Promise<Metadata> {
@@ -25,7 +26,9 @@ export async function generateMetadata({ params }: ZonePageProps): Promise<Metad
 
 export default async function ZonePage({ params, searchParams }: ZonePageProps) {
   const { slug } = await params;
-  const { t: token } = await searchParams;
+  const { t: token, now: nowParam } = await searchParams;
+  const cookieStore = await cookies();
+  const cookieNow = cookieStore.get('mock_now')?.value;
 
   const zone = await SpotsRepository.getZoneBySlug(slug);
 
@@ -33,8 +36,16 @@ export default async function ZonePage({ params, searchParams }: ZonePageProps) 
     notFound();
   }
 
+  const now = nowParam
+    ? new Date(nowParam)
+    : cookieNow
+    ? new Date(cookieNow)
+    : process.env.PLAYWRIGHT_TEST_TIME
+    ? new Date(process.env.PLAYWRIGHT_TEST_TIME)
+    : new Date();
+
   const isTokenValid = Boolean(token && token === zone.qr_token);
-  const openCheck = checkZoneOpen(zone.opening_hours, new Date());
+  const openCheck = checkZoneOpen(zone.opening_hours, now);
 
   return (
     <QRReportFlow

@@ -1,18 +1,29 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { ChevronDown, ChevronUp } from 'lucide-react';
+import { ChevronDown, ChevronUp, List, Map as MapIcon } from 'lucide-react';
 import { ZoneWithEstimate } from '@/types/database';
 import { SpaceRow } from './SpaceRow';
 import { StatusCircleIcon } from './StatusIcon';
+import { RecommendationCard } from './RecommendationCard';
+import { SearchView } from './SearchView';
+import { CampusMap } from './CampusMap';
+import { getRankedRecommendations } from '@/lib/algo/recommendation';
+import { getLondonTime } from '@/lib/algo/estimate';
+import { getBuildingKeyForZone } from '@/lib/algo/map-color';
 
 interface HomeViewProps {
   initialZones: ZoneWithEstimate[];
+  initialSends?: Record<string, number>;
 }
 
-export function HomeView({ initialZones }: HomeViewProps) {
+export function HomeView({ initialZones, initialSends = {} }: HomeViewProps) {
   const [zones, setZones] = useState<ZoneWithEstimate[]>(initialZones);
+  const [sends, setSends] = useState<Record<string, number>>(initialSends);
+  const [view, setView] = useState<'list' | 'map'>('list');
   const [quietOnly, setQuietOnly] = useState(false);
+  const [searchQuery, setSearchQuery] = useState<string | null>(null);
+  const [recIndex, setRecIndex] = useState(0);
   const [openRowId, setOpenRowId] = useState<string | null>(null);
   const [isFullExpanded, setIsFullExpanded] = useState(false);
 
@@ -24,6 +35,9 @@ export function HomeView({ initialZones }: HomeViewProps) {
         const data = await res.json();
         if (data.zones) {
           setZones(data.zones);
+        }
+        if (data.recommendationSends) {
+          setSends(data.recommendationSends);
         }
       }
     } catch {
@@ -54,7 +68,16 @@ export function HomeView({ initialZones }: HomeViewProps) {
     };
   }, [refreshData]);
 
-  // Filter zones: Quiet spaces only shows zones with noise = silent or quiet
+  // Listen for magnifier icon in HeaderBar
+  useEffect(() => {
+    const handleOpenSearch = () => {
+      setSearchQuery((prev) => (prev === null ? '' : prev));
+    };
+    window.addEventListener('lse:open-search', handleOpenSearch);
+    return () => window.removeEventListener('lse:open-search', handleOpenSearch);
+  }, []);
+
+  // Filter zones: Quiet only shows zones with noise = silent or quiet
   const filteredZones = useMemo(() => {
     if (!quietOnly) return zones;
     return zones.filter((z) => z.noise === 'silent' || z.noise === 'quiet');
@@ -80,6 +103,60 @@ export function HomeView({ initialZones }: HomeViewProps) {
   const spacesWithSeatsCount = useMemo(() => {
     return openZones.filter((z) => z.estimate.level === 0 || z.estimate.level === 1).length;
   }, [openZones]);
+
+  // Recommendations: top ranked candidate according to balance formula
+  const recommendations = useMemo(() => {
+    const currentHour = getLondonTime().hour;
+    return getRankedRecommendations(zones, quietOnly, sends, currentHour);
+  }, [zones, quietOnly, sends]);
+
+  const currentRecommendation = useMemo(() => {
+    if (recommendations.length === 0) return null;
+    return recommendations[recIndex % recommendations.length];
+  }, [recommendations, recIndex]);
+
+  const recommendedBuildingKey = useMemo(() => {
+    if (!currentRecommendation) return null;
+    return getBuildingKeyForZone(currentRecommendation.zone.building);
+  }, [currentRecommendation]);
+
+  const handleRecommendationSelect = (zoneId: string) => {
+    // 1. Record send to API asynchronously
+    try {
+      const clientId =
+        typeof localStorage !== 'undefined'
+          ? localStorage.getItem('lse_spots_device_id') || 'dev_guest'
+          : 'dev_guest';
+      fetch('/api/recommendation-send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ zone_id: zoneId, client_random_id: clientId }),
+      }).catch(() => {});
+    } catch {
+      // ignore
+    }
+
+    // 2. Increment local sends count so next rotation steers elsewhere
+    setSends((prev) => ({
+      ...prev,
+      [zoneId]: (prev[zoneId] || 0) + 1,
+    }));
+
+    // 3. Open that space's row, switch to list view, and scroll to it
+    setView('list');
+    setOpenRowId(zoneId);
+
+    setTimeout(() => {
+      const el = document.getElementById(`row-${zoneId}`);
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    }, 60);
+  };
+
+  const handleToggleRow = (id: string) => {
+    setOpenRowId((prev) => (prev === id ? null : id));
+  };
 
   // Group sections by status level
   // Sort within a section: live reports first, then most recently updated, then name
@@ -116,10 +193,6 @@ export function HomeView({ initialZones }: HomeViewProps) {
     [openZones]
   );
 
-  const handleToggleRow = (id: string) => {
-    setOpenRowId((prev) => (prev === id ? null : id));
-  };
-
   // Hero headline
   const getHeroHeadline = () => {
     if (spacesWithSeatsCount === 0) return 'Everything is full';
@@ -129,157 +202,236 @@ export function HomeView({ initialZones }: HomeViewProps) {
 
   return (
     <div className="max-w-xl mx-auto px-4 pt-18 pb-[calc(96px+env(safe-area-inset-bottom,0px))]">
-      {/* 1. HERO */}
-      <section className="pt-4 pb-6" aria-label="Current seat summary">
-        <h1 className="text-3xl sm:text-4xl font-extrabold font-heading text-[var(--ink)] tracking-tight">
-          {getHeroHeadline()}
-        </h1>
-        <p className="text-sm sm:text-base font-normal text-[var(--ink-2)] mt-1">
-          Right now, reported by students.
-        </p>
-      </section>
-
-      {/* 2. ONE TOGGLE SWITCH: "Quiet spaces only" */}
-      <div className="flex items-center justify-between min-h-[48px] py-1 mb-6">
-        <label
-          htmlFor="quiet-toggle"
-          className="text-base font-semibold text-[var(--ink)] cursor-pointer select-none"
-        >
-          Quiet spaces only
-        </label>
-        <button
-          id="quiet-toggle"
-          type="button"
-          role="switch"
-          aria-checked={quietOnly}
-          onClick={() => setQuietOnly((prev) => !prev)}
-          className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)] ${
-            quietOnly ? 'bg-[var(--brand)]' : 'bg-[var(--line)]'
-          }`}
-        >
-          <span className="sr-only">Quiet spaces only</span>
-          <span
-            aria-hidden="true"
-            className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
-              quietOnly ? 'translate-x-5' : 'translate-x-0'
-            }`}
-          />
-        </button>
-      </div>
-
-      {/* 3. GROUP SECTIONS (in order: Plenty of seats -> Filling up) */}
-      <div className="flex flex-col gap-6">
-        {/* SECTION: PLENTY OF SEATS */}
-        {plentyZones.length > 0 && (
-          <section aria-labelledby="section-plenty">
-            <div className="flex items-center justify-between pb-2 px-1 text-sm font-bold font-heading text-[var(--status-plenty-text)]">
-              <div className="flex items-center gap-2">
-                <StatusCircleIcon level={0} className="w-5 h-5 shrink-0" />
-                <h2 id="section-plenty">Plenty of seats</h2>
-              </div>
-              <span className="text-xs font-mono font-normal text-[var(--ink-2)]">
-                {plentyZones.length}
-              </span>
-            </div>
-
-            <div className="rounded-2xl border border-[var(--line)] overflow-hidden divide-y divide-[var(--line)]">
-              {plentyZones.map((z) => (
-                <SpaceRow
-                  key={z.id}
-                  zone={z}
-                  isOpen={openRowId === z.id}
-                  onToggle={() => handleToggleRow(z.id)}
-                />
-              ))}
-            </div>
+      {/* SEARCH VIEW OVERLAY */}
+      {searchQuery !== null ? (
+        <SearchView
+          zones={zones}
+          query={searchQuery}
+          onQueryChange={setSearchQuery}
+          onClose={() => setSearchQuery(null)}
+          quietOnly={quietOnly}
+          openRowId={openRowId}
+          onToggleRow={handleToggleRow}
+        />
+      ) : (
+        <>
+          {/* 1. HERO */}
+          <section className="pt-4 pb-2" aria-label="Current seat summary">
+            <h1 className="text-3xl sm:text-4xl font-extrabold font-heading text-[var(--ink)] tracking-tight">
+              {getHeroHeadline()}
+            </h1>
+            <p className="text-sm sm:text-base font-normal text-[var(--ink-2)] mt-1">
+              Right now, reported by students.
+            </p>
           </section>
-        )}
 
-        {/* SECTION: FILLING UP */}
-        {fillingZones.length > 0 && (
-          <section aria-labelledby="section-filling">
-            <div className="flex items-center justify-between pb-2 px-1 text-sm font-bold font-heading text-[var(--status-filling-text)]">
-              <div className="flex items-center gap-2">
-                <StatusCircleIcon level={1} className="w-5 h-5 shrink-0" />
-                <h2 id="section-filling">Filling up</h2>
-              </div>
-              <span className="text-xs font-mono font-normal text-[var(--ink-2)]">
-                {fillingZones.length}
-              </span>
-            </div>
+          {/* 2. WHERE TO GO (Recommendation Card - list view only) */}
+          {view === 'list' && currentRecommendation && (
+            <RecommendationCard
+              candidate={currentRecommendation}
+              hasMultipleCandidates={recommendations.length > 1}
+              onSelect={handleRecommendationSelect}
+              onShowAnother={() => setRecIndex((prev) => prev + 1)}
+            />
+          )}
 
-            <div className="rounded-2xl border border-[var(--line)] overflow-hidden divide-y divide-[var(--line)]">
-              {fillingZones.map((z) => (
-                <SpaceRow
-                  key={z.id}
-                  zone={z}
-                  isOpen={openRowId === z.id}
-                  onToggle={() => handleToggleRow(z.id)}
-                />
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* 4. FULL SECTION: Collapsed by default into a single row */}
-        {fullZones.length > 0 && (
-          <section aria-labelledby="section-full" className="pt-1">
-            <div className="rounded-2xl border border-[var(--line)] overflow-hidden">
+          {/* 3. CONTROLS: List / Map segmented control + Quiet only button */}
+          <div className="flex items-center gap-2.5 mt-4 mb-6">
+            <div
+              role="tablist"
+              aria-label="View options"
+              className="flex-1 min-h-[48px] p-1 rounded-xl bg-[var(--surface-2)] flex items-center"
+            >
               <button
                 type="button"
-                id="section-full"
-                onClick={() => setIsFullExpanded((prev) => !prev)}
-                aria-expanded={isFullExpanded}
-                className="w-full min-h-[56px] px-4 py-3 bg-[var(--surface-2)] flex items-center justify-between text-left cursor-pointer hover:opacity-90 transition-opacity"
+                role="tab"
+                aria-selected={view === 'list'}
+                onClick={() => setView('list')}
+                className={`flex-1 min-h-[40px] rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  view === 'list'
+                    ? 'bg-[var(--brand)] text-[var(--brand-ink)] shadow-xs'
+                    : 'text-[var(--ink-2)] hover:text-[var(--ink)]'
+                }`}
               >
-                <div className="flex items-center gap-2 text-sm font-bold font-heading text-[var(--status-full-text)]">
-                  <StatusCircleIcon level={2} className="w-5 h-5 shrink-0" />
-                  <span>Full, {fullZones.length}</span>
-                </div>
-
-                <div className="text-[var(--ink-2)]">
-                  {isFullExpanded ? (
-                    <ChevronUp className="w-5 h-5" />
-                  ) : (
-                    <ChevronDown className="w-5 h-5" />
-                  )}
-                </div>
+                <List className="w-4 h-4" aria-hidden="true" />
+                <span>List</span>
               </button>
 
-              {isFullExpanded && (
-                <div className="divide-y divide-[var(--line)] animate-in fade-in duration-150">
-                  {fullZones.map((z) => (
-                    <SpaceRow
-                      key={z.id}
-                      zone={z}
-                      isOpen={openRowId === z.id}
-                      onToggle={() => handleToggleRow(z.id)}
-                    />
-                  ))}
-                </div>
+              <button
+                type="button"
+                role="tab"
+                aria-selected={view === 'map'}
+                onClick={() => setView('map')}
+                className={`flex-1 min-h-[40px] rounded-lg text-sm font-semibold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  view === 'map'
+                    ? 'bg-[var(--brand)] text-[var(--brand-ink)] shadow-xs'
+                    : 'text-[var(--ink-2)] hover:text-[var(--ink)]'
+                }`}
+              >
+                <MapIcon className="w-4 h-4" aria-hidden="true" />
+                <span>Map</span>
+              </button>
+            </div>
+
+            <button
+              type="button"
+              aria-pressed={quietOnly}
+              onClick={() => setQuietOnly((prev) => !prev)}
+              className={`min-h-[48px] px-4 rounded-xl border-2 text-sm font-semibold transition-all cursor-pointer select-none ${
+                quietOnly
+                  ? 'bg-[var(--ink)] text-[var(--surface)] border-[var(--ink)]'
+                  : 'bg-[var(--surface)] text-[var(--ink)] border-[var(--line)] hover:border-[var(--ink-2)]'
+              }`}
+            >
+              Quiet only
+            </button>
+          </div>
+
+          {/* 4. MAIN CONTENT: Map or List */}
+          {view === 'map' ? (
+            <CampusMap
+              zones={zones}
+              quietOnly={quietOnly}
+              recommendedBuildingKey={recommendedBuildingKey}
+              openRowId={openRowId}
+              onToggleRow={handleToggleRow}
+            />
+          ) : (
+            <div className="flex flex-col gap-6">
+              {/* SECTION: PLENTY OF SEATS */}
+              {plentyZones.length > 0 && (
+                <section aria-labelledby="section-plenty">
+                  <div className="flex items-center justify-between pb-2 px-1 text-sm font-bold font-heading text-[var(--status-plenty-text)]">
+                    <div className="flex items-center gap-2">
+                      <StatusCircleIcon level={0} className="w-5 h-5 shrink-0" />
+                      <span id="section-plenty">Plenty of seats</span>
+                    </div>
+                    <span className="font-sans font-bold text-xs text-[var(--ink-2)]">
+                      {plentyZones.length}
+                    </span>
+                  </div>
+
+                  <ul className="divide-y divide-[var(--line)] border-y border-[var(--line)] bg-[var(--surface)] rounded-2xl overflow-hidden shadow-xs">
+                    {plentyZones.map((z) => (
+                      <SpaceRow
+                        key={z.id}
+                        zone={z}
+                        isOpen={openRowId === z.id}
+                        onToggle={() => handleToggleRow(z.id)}
+                      />
+                    ))}
+                  </ul>
+                </section>
+              )}
+
+              {/* SECTION: FILLING UP */}
+              {fillingZones.length > 0 && (
+                <section aria-labelledby="section-filling">
+                  <div className="flex items-center justify-between pb-2 px-1 text-sm font-bold font-heading text-[var(--status-filling-text)]">
+                    <div className="flex items-center gap-2">
+                      <StatusCircleIcon level={1} className="w-5 h-5 shrink-0" />
+                      <span id="section-filling">Filling up</span>
+                    </div>
+                    <span className="font-sans font-bold text-xs text-[var(--ink-2)]">
+                      {fillingZones.length}
+                    </span>
+                  </div>
+
+                  <ul className="divide-y divide-[var(--line)] border-y border-[var(--line)] bg-[var(--surface)] rounded-2xl overflow-hidden shadow-xs">
+                    {fillingZones.map((z) => (
+                      <SpaceRow
+                        key={z.id}
+                        zone={z}
+                        isOpen={openRowId === z.id}
+                        onToggle={() => handleToggleRow(z.id)}
+                      />
+                    ))}
+                  </ul>
+                </section>
+              )}
+
+              {/* Quiet filter empty state */}
+              {plentyZones.length === 0 && fillingZones.length === 0 && quietOnly && (
+                <p className="text-sm text-[var(--ink-2)] text-center py-4">
+                  No quiet spaces have seats.{' '}
+                  <button
+                    type="button"
+                    onClick={() => setQuietOnly(false)}
+                    className="font-bold underline text-[var(--brand-text)] cursor-pointer"
+                  >
+                    Show all spaces
+                  </button>
+                </p>
+              )}
+
+              {/* SECTION: FULL (Collapsed by default into single accordion row) */}
+              {fullZones.length > 0 && (
+                <section aria-labelledby="section-full-header">
+                  <div className="bg-[var(--surface)] rounded-2xl border border-[var(--line)] overflow-hidden shadow-xs">
+                    <button
+                      type="button"
+                      id="section-full-header"
+                      aria-expanded={isFullExpanded}
+                      onClick={() => setIsFullExpanded((prev) => !prev)}
+                      className="w-full min-h-[56px] px-4 py-3 flex items-center justify-between text-left hover:bg-[var(--surface-2)] transition-colors cursor-pointer select-none"
+                    >
+                      <div className="flex items-center gap-2.5 font-bold font-heading text-sm text-[var(--status-full-text)]">
+                        <StatusCircleIcon level={2} className="w-5 h-5 shrink-0" />
+                        <span>Full</span>
+                        <span className="font-sans text-xs text-[var(--ink-2)] font-semibold ml-1">
+                          {fullZones.length}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-1 text-[var(--ink-2)]">
+                        <span className="text-xs font-semibold">
+                          {isFullExpanded ? 'Hide' : 'Show'}
+                        </span>
+                        {isFullExpanded ? (
+                          <ChevronUp className="w-4 h-4 shrink-0" aria-hidden="true" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4 shrink-0" aria-hidden="true" />
+                        )}
+                      </div>
+                    </button>
+
+                    {isFullExpanded && (
+                      <div className="border-t border-[var(--line)] divide-y divide-[var(--line)] animate-in fade-in duration-150">
+                        {fullZones.map((z) => (
+                          <SpaceRow
+                            key={z.id}
+                            zone={z}
+                            isOpen={openRowId === z.id}
+                            onToggle={() => handleToggleRow(z.id)}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </section>
               )}
             </div>
-          </section>
-        )}
-      </div>
+          )}
 
-      {/* 5. CLOSED NOW: One line of text at the bottom */}
-      {closedZones.length > 0 && (
-        <div className="mt-8 text-xs text-[var(--ink-2)] text-center leading-relaxed">
-          <span>Closed now: </span>
-          {closedZones.map((z, idx) => (
-            <span key={z.id}>
-              {z.name} ({z.estimate.closed_reason || 'closed'})
-              {idx < closedZones.length - 1 ? ', ' : ''}
-            </span>
-          ))}
-        </div>
+          {/* 5. CLOSED NOW: One line of text at the bottom */}
+          {closedZones.length > 0 && !quietOnly && (
+            <div className="mt-8 text-xs text-[var(--ink-2)] text-center leading-relaxed">
+              <span>Closed now: </span>
+              {closedZones.map((z, idx) => (
+                <span key={z.id}>
+                  {z.name} ({z.estimate.closed_reason || 'closed'})
+                  {idx < closedZones.length - 1 ? ', ' : ''}
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* 6. FOOTER DISCLAIMER */}
+          <footer className="mt-12 pt-6 border-t border-[var(--line)] text-center text-xs text-[var(--ink-2)]">
+            Student-built, not affiliated with LSE. Estimates only.
+          </footer>
+        </>
       )}
-
-      {/* 6. FOOTER DISCLAIMER */}
-      <footer className="mt-12 pt-6 border-t border-[var(--line)] text-center text-xs text-[var(--ink-2)]">
-        Student-built, not affiliated with LSE. Estimates only.
-      </footer>
     </div>
   );
 }

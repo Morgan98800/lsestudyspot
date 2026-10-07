@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { Bricolage_Grotesque, Instrument_Sans } from 'next/font/google';
+import 'leaflet/dist/leaflet.css';
 import './globals.css';
 import { HeaderBar } from '@/components/HeaderBar';
 import { OfflineBanner } from '@/components/OfflineBanner';
