@@ -20,7 +20,7 @@ The product adheres strictly to two entry points, each with one single job:
 
 ## 🎨 Visual System & Design Tokens
 
-- **Brand Token**: `--brand: #E4002B` (TODO_VERIFY against official LSE brand guidelines). Used **strictly** for: header bar, selected segmented filter, primary buttons, and the current hour bar in the busyness chart. **Never used for a status.**
+- **Brand Token**: `--brand: #E4002B` (TODO_VERIFY against official LSE brand guidelines). Used **strictly** for: header bar, "Quiet spaces only" switch when active, primary buttons, and the current hour bar in the busyness chart. **Never used for a status.**
 - **Light Theme**:
   - `bg`: `#F6F5F3` | `surface`: `#FFFFFF` | `surface-2`: `#EBE9E6`
   - `ink`: `#1B1B1D` | `ink-2`: `#55555B` | `line`: `#D9D7D3`
@@ -35,6 +35,12 @@ The product adheres strictly to two entry points, each with one single job:
 - **Status Icons**: Outlined circle with check (*Plenty of seats*), half-filled outlined circle (*Filling up*), outlined circle with cross (*Full*).
 - **Predictions**: Drawn with a **dashed outline and no fill**, displaying `"Usual level"` instead of a relative timestamp. Never presented as live data.
 - **Typography**: Bricolage Grotesque (headings, weights 600/800) and Instrument Sans (body). Sentence case everywhere.
+
+## 📐 Design & Product Rules
+- **The Answer Comes First**: On the home page, the first thing under the header is the answer ("X spaces have seats").
+- **Single Filter**: One toggle switch labelled "Quiet spaces only" (`role="switch"`, `aria-checked`). When on, shows only zones with `noise = silent` or `quiet`. Default off. Switch is brand red when on. This is the ONLY filter.
+- **Attributes on Accordion Row**: Silent / Quiet / Talking is fine, Power, PCs.
+- **Strict Scope Boundaries**: Do not add search, building selectors, walking times, confidence badges, tag rows, "view spot" buttons, group-room or booking features, or extra filters. They were deliberately removed. Do not integrate with LSE's room booking system.
 
 ---
 
@@ -99,7 +105,7 @@ npm test
 ```
 
 ### End-to-End Smoke Tests (Playwright)
-Validates mobile flows: home shows answer first, segmented control filters, accordion expands, 1-tap QR submission, rate limiting, and invalid token edge state:
+Validates mobile flows: home shows answer first, Quiet toggle hides non-quiet spaces, accordion expands, 1-tap QR submission, rate limiting, and invalid token edge state:
 ```bash
 npm run test:e2e
 ```
@@ -130,7 +136,6 @@ npm run reset-demo -- --clear
   floor: 'Floor 3',
   noise: 'silent', // 'silent' | 'quiet' | 'social'
   has_power: true,
-  has_group_tables: false,
   has_pcs: false,
   opening_hours: {
     mon: { open: '08:30', close: '21:00' },

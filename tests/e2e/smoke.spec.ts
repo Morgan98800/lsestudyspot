@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('LSE Spots Exact Smoke Tests', () => {
-  test('Home page shows the answer first, with segmented filter and sections', async ({ page }) => {
+  test('Home page shows the answer first, with Quiet spaces only toggle and sections', async ({ page }) => {
     await page.goto('/');
 
     // 1. Header has white wordmark "LSE Spots" and "Unofficial" pill
@@ -17,12 +17,11 @@ test.describe('LSE Spots Exact Smoke Tests', () => {
     // 3. Subline
     await expect(page.locator('text=Right now, reported by students.')).toBeVisible();
 
-    // 4. Segmented control with 3 options: All / Quiet / Group
-    const filterTabs = page.locator('[role="tab"]');
-    await expect(filterTabs).toHaveCount(3);
-    await expect(filterTabs.nth(0)).toHaveText('All');
-    await expect(filterTabs.nth(1)).toHaveText('Quiet');
-    await expect(filterTabs.nth(2)).toHaveText('Group');
+    // 4. One toggle switch labelled "Quiet spaces only" (role="switch", aria-checked)
+    const switchBtn = page.locator('button[role="switch"]');
+    await expect(switchBtn).toBeVisible();
+    await expect(switchBtn).toHaveAttribute('aria-checked', 'false');
+    await expect(page.locator('text=Quiet spaces only')).toBeVisible();
 
     // Verify NO search bar or dropdowns exist on home
     await expect(page.locator('input[type="search"]')).toHaveCount(0);
@@ -34,20 +33,20 @@ test.describe('LSE Spots Exact Smoke Tests', () => {
     );
   });
 
-  test('Segmented control filters list by Quiet and Group', async ({ page }) => {
+  test('Quiet toggle hides non-quiet spaces', async ({ page }) => {
     await page.goto('/');
 
-    // Tap "Quiet"
-    await page.getByRole('tab', { name: 'Quiet' }).click();
-    await expect(page.getByRole('tab', { name: 'Quiet' })).toHaveClass(/bg-\[var\(--brand\)\]/);
+    const switchBtn = page.locator('button[role="switch"]');
+    await expect(switchBtn).toHaveAttribute('aria-checked', 'false');
 
-    // Tap "Group"
-    await page.getByRole('tab', { name: 'Group' }).click();
-    await expect(page.getByRole('tab', { name: 'Group' })).toHaveClass(/bg-\[var\(--brand\)\]/);
+    // Toggle on -> brand red
+    await switchBtn.click();
+    await expect(switchBtn).toHaveAttribute('aria-checked', 'true');
+    await expect(switchBtn).toHaveClass(/bg-\[var\(--brand\)\]/);
 
-    // Tap "All"
-    await page.getByRole('tab', { name: 'All' }).click();
-    await expect(page.getByRole('tab', { name: 'All' })).toHaveClass(/bg-\[var\(--brand\)\]/);
+    // Toggle off -> default line color
+    await switchBtn.click();
+    await expect(switchBtn).toHaveAttribute('aria-checked', 'false');
   });
 
   test('Accordion expands inline to reveal attributes, insight, and hourly chart', async ({ page }) => {

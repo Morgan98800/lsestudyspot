@@ -10,11 +10,7 @@
     "heroCountOne": "1 space has seats",
     "heroCountZero": "Everything is full",
     "heroSubline": "Right now, reported by students.",
-    "filters": {
-      "all": "All",
-      "quiet": "Quiet",
-      "group": "Group"
-    },
+    "quietOnly": "Quiet spaces only",
     "sections": {
       "plenty": "Plenty of seats",
       "filling_up": "Filling up",
@@ -31,7 +27,6 @@
     "quiet": "Quiet",
     "social": "Talking is fine",
     "power": "Power",
-    "groupTables": "Group tables",
     "pcs": "PCs"
   },
   "report": {

@@ -13,7 +13,6 @@ CREATE TABLE IF NOT EXISTS public.zones (
     floor TEXT NOT NULL,
     noise TEXT NOT NULL CHECK (noise IN ('silent', 'quiet', 'social')),
     has_power BOOLEAN NOT NULL DEFAULT true,
-    has_group_tables BOOLEAN NOT NULL DEFAULT false,
     has_pcs BOOLEAN NOT NULL DEFAULT false,
     opening_hours JSONB,
     is_active BOOLEAN NOT NULL DEFAULT true,

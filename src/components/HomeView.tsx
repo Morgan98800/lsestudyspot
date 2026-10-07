@@ -12,7 +12,7 @@ interface HomeViewProps {
 
 export function HomeView({ initialZones }: HomeViewProps) {
   const [zones, setZones] = useState<ZoneWithEstimate[]>(initialZones);
-  const [filter, setFilter] = useState<'all' | 'quiet' | 'group'>('all');
+  const [quietOnly, setQuietOnly] = useState(false);
   const [openRowId, setOpenRowId] = useState<string | null>(null);
   const [isFullExpanded, setIsFullExpanded] = useState(false);
 
@@ -54,18 +54,11 @@ export function HomeView({ initialZones }: HomeViewProps) {
     };
   }, [refreshData]);
 
-  // Filter zones by segmented control
+  // Filter zones: Quiet spaces only shows zones with noise = silent or quiet
   const filteredZones = useMemo(() => {
-    return zones.filter((z) => {
-      if (filter === 'quiet') {
-        return z.noise === 'silent' || z.noise === 'quiet';
-      }
-      if (filter === 'group') {
-        return z.has_group_tables;
-      }
-      return true;
-    });
-  }, [zones, filter]);
+    if (!quietOnly) return zones;
+    return zones.filter((z) => z.noise === 'silent' || z.noise === 'quiet');
+  }, [zones, quietOnly]);
 
   // Separate active zones vs closed zones
   const { openZones, closedZones } = useMemo(() => {
@@ -146,52 +139,31 @@ export function HomeView({ initialZones }: HomeViewProps) {
         </p>
       </section>
 
-      {/* 2. ONE SEGMENTED CONTROL: All / Quiet / Group */}
-      <div
-        role="tablist"
-        aria-label="Filter study spaces"
-        className="w-full min-h-[48px] p-1 rounded-xl bg-[var(--surface-2)] flex items-center mb-6"
-      >
+      {/* 2. ONE TOGGLE SWITCH: "Quiet spaces only" */}
+      <div className="flex items-center justify-between min-h-[48px] py-1 mb-6">
+        <label
+          htmlFor="quiet-toggle"
+          className="text-base font-semibold text-[var(--ink)] cursor-pointer select-none"
+        >
+          Quiet spaces only
+        </label>
         <button
+          id="quiet-toggle"
           type="button"
-          role="tab"
-          aria-selected={filter === 'all'}
-          onClick={() => setFilter('all')}
-          className={`flex-1 min-h-[40px] rounded-lg text-sm font-semibold transition-all cursor-pointer ${
-            filter === 'all'
-              ? 'bg-[var(--brand)] text-[var(--brand-ink)] shadow-xs'
-              : 'text-[var(--ink-2)] hover:text-[var(--ink)]'
+          role="switch"
+          aria-checked={quietOnly}
+          onClick={() => setQuietOnly((prev) => !prev)}
+          className={`relative inline-flex h-7 w-12 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--brand)] ${
+            quietOnly ? 'bg-[var(--brand)]' : 'bg-[var(--line)]'
           }`}
         >
-          All
-        </button>
-
-        <button
-          type="button"
-          role="tab"
-          aria-selected={filter === 'quiet'}
-          onClick={() => setFilter('quiet')}
-          className={`flex-1 min-h-[40px] rounded-lg text-sm font-semibold transition-all cursor-pointer ${
-            filter === 'quiet'
-              ? 'bg-[var(--brand)] text-[var(--brand-ink)] shadow-xs'
-              : 'text-[var(--ink-2)] hover:text-[var(--ink)]'
-          }`}
-        >
-          Quiet
-        </button>
-
-        <button
-          type="button"
-          role="tab"
-          aria-selected={filter === 'group'}
-          onClick={() => setFilter('group')}
-          className={`flex-1 min-h-[40px] rounded-lg text-sm font-semibold transition-all cursor-pointer ${
-            filter === 'group'
-              ? 'bg-[var(--brand)] text-[var(--brand-ink)] shadow-xs'
-              : 'text-[var(--ink-2)] hover:text-[var(--ink)]'
-          }`}
-        >
-          Group
+          <span className="sr-only">Quiet spaces only</span>
+          <span
+            aria-hidden="true"
+            className={`pointer-events-none inline-block h-6 w-6 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+              quietOnly ? 'translate-x-5' : 'translate-x-0'
+            }`}
+          />
         </button>
       </div>
 

@@ -47,7 +47,6 @@ describe('Live Estimate & Prediction Tests', () => {
       floor: 'Floor 2',
       noise: 'quiet',
       has_power: true,
-      has_group_tables: false,
       has_pcs: false,
       opening_hours: null,
       is_active: true,

@@ -1,7 +1,7 @@
 /**
  * LSE Spots Data Model Types
  * Exact specification:
- * - zones: id, slug, name, descriptor, building, floor, noise, has_power, has_group_tables, has_pcs, opening_hours, is_active, qr_token
+ * - zones: id, slug, name, descriptor, building, floor, noise, has_power, has_pcs, opening_hours, is_active, qr_token
  * - reports: id, zone_id, level (0 | 1 | 2), created_at, device_hash, is_flagged
  * - hourly_stats: zone_id, weekday (0-6), hour (0-23), avg_level (number 0.0 - 2.0), n_reports, updated_at
  */
@@ -35,7 +35,6 @@ export interface Zone {
   floor: string;
   noise: NoiseType;
   has_power: boolean;
-  has_group_tables: boolean;
   has_pcs: boolean;
   opening_hours: WeekdayHours | null;
   is_active: boolean;

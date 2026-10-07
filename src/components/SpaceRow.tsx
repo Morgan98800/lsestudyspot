@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { VolumeX, Volume2, MessageSquare, Zap, Users, Monitor } from 'lucide-react';
+import { VolumeX, Volume2, MessageSquare, Zap, Monitor } from 'lucide-react';
 import { ZoneWithEstimate } from '@/types/database';
 import { StatusSquare } from './StatusIcon';
 import { HourlyChart } from './HourlyChart';
@@ -99,13 +99,6 @@ export function SpaceRow({ zone, isOpen, onToggle }: SpaceRowProps) {
               <span className="inline-flex items-center gap-1.5 text-xs text-[var(--ink-2)]">
                 <Zap className="w-4 h-4 text-amber-500 shrink-0" aria-hidden="true" />
                 <span>Power</span>
-              </span>
-            )}
-
-            {zone.has_group_tables && (
-              <span className="inline-flex items-center gap-1.5 text-xs text-[var(--ink-2)]">
-                <Users className="w-4 h-4 text-emerald-500 shrink-0" aria-hidden="true" />
-                <span>Group tables</span>
               </span>
             )}
 

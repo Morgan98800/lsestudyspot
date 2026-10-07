@@ -10,7 +10,6 @@ export const STARTER_ZONES: Zone[] = [
     floor: 'Floor 1',
     noise: 'quiet',
     has_power: true,
-    has_group_tables: false,
     has_pcs: true,
     opening_hours: {
       mon: { open: '08:30', close: '00:00' },
@@ -37,7 +36,6 @@ export const STARTER_ZONES: Zone[] = [
     floor: 'Floor 2',
     noise: 'quiet',
     has_power: true,
-    has_group_tables: false,
     has_pcs: false,
     opening_hours: {
       mon: { open: '08:30', close: '00:00' },
@@ -64,7 +62,6 @@ export const STARTER_ZONES: Zone[] = [
     floor: 'Floor 3',
     noise: 'silent',
     has_power: true,
-    has_group_tables: false,
     has_pcs: false,
     opening_hours: {
       mon: { open: '08:30', close: '00:00' },
@@ -90,7 +87,6 @@ export const STARTER_ZONES: Zone[] = [
     floor: 'Floor 2',
     noise: 'quiet',
     has_power: true,
-    has_group_tables: true,
     has_pcs: false,
     opening_hours: {
       mon: { open: '08:00', close: '22:00' },
@@ -116,7 +112,6 @@ export const STARTER_ZONES: Zone[] = [
     floor: 'Ground floor',
     noise: 'social',
     has_power: true,
-    has_group_tables: true,
     has_pcs: false,
     opening_hours: {
       mon: { open: '07:30', close: '22:30' },
@@ -142,7 +137,6 @@ export const STARTER_ZONES: Zone[] = [
     floor: 'Floor 2',
     noise: 'quiet',
     has_power: true,
-    has_group_tables: true,
     has_pcs: false,
     opening_hours: {
       mon: { open: '08:30', close: '21:00' },
@@ -168,7 +162,6 @@ export const STARTER_ZONES: Zone[] = [
     floor: 'Ground floor',
     noise: 'social',
     has_power: true,
-    has_group_tables: true,
     has_pcs: false,
     opening_hours: {
       mon: { open: '08:00', close: '21:00' },
@@ -194,7 +187,6 @@ export const STARTER_ZONES: Zone[] = [
     floor: 'Floor 1',
     noise: 'silent',
     has_power: false,
-    has_group_tables: true,
     has_pcs: false,
     opening_hours: {
       mon: { open: '09:00', close: '18:00' },
