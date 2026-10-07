@@ -21,7 +21,7 @@ test.describe('LSE Spots Exact Smoke Tests', () => {
     const switchBtn = page.locator('button[role="switch"]');
     await expect(switchBtn).toBeVisible();
     await expect(switchBtn).toHaveAttribute('aria-checked', 'false');
-    await expect(page.locator('text=Quiet spaces only')).toBeVisible();
+    await expect(page.locator('label[for="quiet-toggle"]')).toBeVisible();
 
     // Verify NO search bar or dropdowns exist on home
     await expect(page.locator('input[type="search"]')).toHaveCount(0);
@@ -100,10 +100,17 @@ test.describe('LSE Spots Exact Smoke Tests', () => {
   });
 
   test('QR Report flow: rate limit error when reporting again within 10 minutes', async ({ page }) => {
-    // Navigate with valid token that was just submitted
-    await page.goto('/z/library-floor-1?t=qr_tok_lib_f1_v1');
+    // 1. Submit report for Library floor 2
+    await page.goto('/z/library-floor-2?t=qr_tok_lib_f2_v1');
+    const plentyButton = page.getByRole('button', { name: /Plenty of seats/i });
+    await plentyButton.click();
+    await expect(page.locator('text=Thanks!')).toBeVisible();
 
-    // Should show rate limit message
+    // 2. Reload the page and attempt to submit again immediately
+    await page.goto('/z/library-floor-2?t=qr_tok_lib_f2_v1');
+    await page.getByRole('button', { name: /Plenty of seats/i }).click();
+
+    // 3. Should show rate limit message
     await expect(page.locator('text=You already reported here')).toBeVisible();
     await expect(page.locator('text=You can report again in')).toBeVisible();
     await expect(page.getByRole('link', { name: 'See free spaces' })).toBeVisible();
