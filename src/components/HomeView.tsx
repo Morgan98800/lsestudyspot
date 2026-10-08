@@ -9,6 +9,7 @@ import { StatusCircleIcon } from './StatusIcon';
 import { RecommendationCard } from './RecommendationCard';
 import { SearchView } from './SearchView';
 import { CampusMap } from './CampusMap';
+import { InstallBanner } from './InstallBanner';
 import { getRankedRecommendations } from '@/lib/algo/recommendation';
 import { getLondonTime } from '@/lib/algo/estimate';
 import { getBuildingKeyForZone } from '@/lib/algo/map-color';
@@ -37,6 +38,15 @@ export function HomeView({ initialZones, initialSends = {}, serverTime }: HomeVi
         const data = await res.json();
         if (data.zones) {
           setZones(data.zones);
+          const now = new Date();
+          const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(
+            now.getMinutes()
+          ).padStart(2, '0')}`;
+          try {
+            localStorage.setItem('lse_last_sync_time', timeStr);
+          } catch {
+            // ignore storage errors
+          }
         }
         if (data.recommendationSends) {
           setSends(data.recommendationSends);
@@ -203,7 +213,7 @@ export function HomeView({ initialZones, initialSends = {}, serverTime }: HomeVi
   };
 
   return (
-    <div className="max-w-xl mx-auto px-4 pt-18 pb-[calc(96px+env(safe-area-inset-bottom,0px))]">
+    <div className="max-w-xl mx-auto px-4 pt-[calc(4.5rem+env(safe-area-inset-top,0px))]">
       {/* SEARCH VIEW OVERLAY */}
       {searchQuery !== null ? (
         <SearchView
@@ -428,12 +438,18 @@ export function HomeView({ initialZones, initialSends = {}, serverTime }: HomeVi
             </div>
           )}
 
-          {/* 6. FOOTER DISCLAIMER & PRIVACY */}
-          <footer className="mt-12 pt-6 pb-[calc(96px+env(safe-area-inset-bottom))] border-t border-[var(--line)] text-center text-xs text-[var(--ink-2)] space-y-2">
+          {/* 6. INSTALL BANNER & FOOTER */}
+          <InstallBanner isSearchOpen={searchQuery !== null} />
+
+          <footer className="mt-12 pt-6 border-t border-[var(--line)] text-center text-xs text-[var(--ink-2)] space-y-2">
             <p>Student-built, not affiliated with LSE. Estimates only.</p>
             <div className="flex items-center justify-center gap-3">
               <Link href="/privacy" className="hover:underline">
                 Privacy
+              </Link>
+              <span>&bull;</span>
+              <Link href="/feedback" className="hover:underline">
+                Send feedback
               </Link>
             </div>
           </footer>

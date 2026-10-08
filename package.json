@@ -11,7 +11,8 @@
     "test:e2e": "playwright test",
     "generate-posters": "tsx scripts/generate-posters.ts",
     "reset-demo": "tsx scripts/reset-demo.ts",
-    "seed-calendar": "tsx scripts/seed-calendar.ts"
+    "seed-calendar": "tsx scripts/seed-calendar.ts",
+    "make-icons": "tsx scripts/make-icons.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.3",

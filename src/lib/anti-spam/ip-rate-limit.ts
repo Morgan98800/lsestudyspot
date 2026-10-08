@@ -8,6 +8,8 @@ interface RateLimitEntry {
 
 // In-memory rate limiting map keyed by hashed IP
 const ipLimits = new Map<string, RateLimitEntry>();
+// In-memory rate limiting map keyed by device hash
+const deviceLimits = new Map<string, RateLimitEntry>();
 
 /**
  * Creates a one-way pseudonymous hash of an IP address.
@@ -20,11 +22,11 @@ export function hashIp(rawIp: string): string {
 
 /**
  * Checks and records a rate-limited request for an IP address.
- * Default: 5 requests per hour.
+ * High safety ceiling (e.g. 60 requests per hour on eduroam campus Wi-Fi).
  */
 export function checkIpRateLimit(
   rawIp: string,
-  maxRequests = 5,
+  maxRequests = 60,
   windowMs = 60 * 60 * 1000 // 1 hour
 ): { allowed: boolean; remaining: number; resetMs: number } {
   const ipHash = hashIp(rawIp);
@@ -35,6 +37,46 @@ export function checkIpRateLimit(
   if (!entry) {
     entry = { timestamps: [] };
     ipLimits.set(ipHash, entry);
+  }
+
+  // Filter timestamps within sliding window
+  entry.timestamps = entry.timestamps.filter((t) => t > windowStart);
+
+  if (entry.timestamps.length >= maxRequests) {
+    const oldest = entry.timestamps[0];
+    const resetMs = Math.max(0, oldest + windowMs - now);
+    return {
+      allowed: false,
+      remaining: 0,
+      resetMs,
+    };
+  }
+
+  entry.timestamps.push(now);
+  return {
+    allowed: true,
+    remaining: maxRequests - entry.timestamps.length,
+    resetMs: windowMs,
+  };
+}
+
+/**
+ * Checks and records a rate-limited request for a device hash or ID.
+ * Primary rate limit (e.g. 3 submissions per hour per device).
+ */
+export function checkDeviceRateLimit(
+  deviceIdOrHash: string,
+  maxRequests = 3,
+  windowMs = 60 * 60 * 1000 // 1 hour
+): { allowed: boolean; remaining: number; resetMs: number } {
+  const key = deviceIdOrHash || 'anonymous_device';
+  const now = Date.now();
+  const windowStart = now - windowMs;
+
+  let entry = deviceLimits.get(key);
+  if (!entry) {
+    entry = { timestamps: [] };
+    deviceLimits.set(key, entry);
   }
 
   // Filter timestamps within sliding window
@@ -74,6 +116,14 @@ export function purgeOldIpRateLimits(retentionMs = 24 * 60 * 60 * 1000): number 
     }
   }
 
+  for (const [key, entry] of deviceLimits.entries()) {
+    entry.timestamps = entry.timestamps.filter((t) => t > cutoff);
+    if (entry.timestamps.length === 0) {
+      deviceLimits.delete(key);
+      purged++;
+    }
+  }
+
   return purged;
 }
 
@@ -82,4 +132,5 @@ export function purgeOldIpRateLimits(retentionMs = 24 * 60 * 60 * 1000): number 
  */
 export function resetIpRateLimits(): void {
   ipLimits.clear();
+  deviceLimits.clear();
 }

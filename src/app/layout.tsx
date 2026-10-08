@@ -20,26 +20,48 @@ const instrument = Instrument_Sans({
   display: 'swap',
 });
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || 'https://lsestudyspot.vercel.app';
+
 export const metadata: Metadata = {
-  title: 'LSE Spots',
-  description: 'See where study seats are available right now at LSE.',
+  metadataBase: new URL(siteUrl),
+  title: {
+    default: 'LSE Spots',
+    template: '%s — LSE Spots',
+  },
+  description: 'See where there are free study seats at LSE right now. Unofficial, student-built.',
+  openGraph: {
+    type: 'website',
+    locale: 'en_GB',
+    siteName: 'LSE Spots',
+    title: 'LSE Spots',
+    description: 'See where there are free study seats at LSE right now. Unofficial, student-built.',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'LSE Spots',
+    description: 'See where there are free study seats at LSE right now. Unofficial, student-built.',
+  },
   manifest: '/manifest.json',
   icons: {
     icon: '/favicon.ico',
-    apple: '/icons/icon-192.svg',
+    apple: '/icons/apple-touch-icon.png',
   },
   appleWebApp: {
     capable: true,
-    statusBarStyle: 'default',
+    statusBarStyle: 'black-translucent',
     title: 'LSE Spots',
   },
 };
 
 export const viewport: Viewport = {
-  themeColor: '#E4002B',
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#E4002B' },
+    { media: '(prefers-color-scheme: dark)', color: '#E4002B' },
+  ],
   width: 'device-width',
   initialScale: 1,
   maximumScale: 5,
+  viewportFit: 'cover',
 };
 
 export default function RootLayout({
@@ -52,11 +74,11 @@ export default function RootLayout({
       lang="en"
       className={`${bricolage.variable} ${instrument.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-[var(--bg)] text-[var(--ink)]">
+      <body className="min-h-[100dvh] flex flex-col bg-[var(--bg)] text-[var(--ink)]">
         <ServiceWorkerRegister />
         <HeaderBar />
         <OfflineBanner />
-        <main className="flex-1">{children}</main>
+        <main className="flex-1 pb-[calc(96px+env(safe-area-inset-bottom))] has-[[data-page='qr']]:pb-0">{children}</main>
       </body>
     </html>
   );

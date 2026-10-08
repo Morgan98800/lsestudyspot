@@ -1,3 +1,4 @@
+import { Metadata } from 'next';
 import { cookies } from 'next/headers';
 import { SpotsRepository } from '@/lib/db/repository';
 import { computeZoneEstimate } from '@/lib/algo/estimate';
@@ -5,6 +6,12 @@ import { HomeView } from '@/components/HomeView';
 import { ZoneWithEstimate } from '@/types/database';
 
 export const dynamic = 'force-dynamic';
+
+export const metadata: Metadata = {
+  alternates: {
+    canonical: '/',
+  },
+};
 
 export default async function HomePage({
   searchParams,

@@ -10,19 +10,16 @@ interface ZonePageProps {
   searchParams: Promise<{ t?: string; now?: string }>;
 }
 
-export async function generateMetadata({ params }: ZonePageProps): Promise<Metadata> {
-  const { slug } = await params;
-  const zone = await SpotsRepository.getZoneBySlug(slug);
-
-  if (!zone) {
-    return { title: 'Space Not Found — LSE Spots' };
-  }
-
-  return {
-    title: `Report: ${zone.name} — LSE Spots`,
-    description: `Report study seat availability at ${zone.name} in 3 seconds.`,
-  };
-}
+export const metadata: Metadata = {
+  title: {
+    absolute: 'LSE Spots',
+  },
+  description: 'See where there are free study seats at LSE right now. Unofficial, student-built.',
+  robots: {
+    index: false,
+    follow: false,
+  },
+};
 
 export default async function ZonePage({ params, searchParams }: ZonePageProps) {
   const { slug } = await params;

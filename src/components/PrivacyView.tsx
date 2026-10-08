@@ -140,6 +140,14 @@ export function PrivacyView() {
                   </td>
                   <td className="py-2.5">{p.whatCollect.tableIpDesc}</td>
                 </tr>
+                {p.whatCollect.tableFeedback && (
+                  <tr>
+                    <td className="py-2.5 pr-3 font-medium text-[var(--ink)]">
+                      {p.whatCollect.tableFeedback}
+                    </td>
+                    <td className="py-2.5">{p.whatCollect.tableFeedbackDesc}</td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -272,6 +280,10 @@ export function PrivacyView() {
           <span>&bull;</span>
           <Link href="/privacy" className="font-semibold text-[var(--ink)] hover:underline">
             Privacy
+          </Link>
+          <span>&bull;</span>
+          <Link href="/feedback" className="hover:underline">
+            Send feedback
           </Link>
         </div>
       </footer>

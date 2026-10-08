@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { SpotsRepository } from '@/lib/db/repository';
 import { generateDeviceHash } from '@/lib/anti-spam/device-hash';
+import { checkIpRateLimit } from '@/lib/anti-spam/ip-rate-limit';
 import { verifyTurnstileToken } from '@/lib/anti-spam/turnstile';
 import { getOpenState } from '@/lib/algo/opening-hours';
 import { BusynessLevel } from '@/types/database';
@@ -77,6 +78,18 @@ export async function POST(request: NextRequest) {
     const turnstileResult = await verifyTurnstileToken(turnstile_token, clientIp);
     if (!turnstileResult.success) {
       return NextResponse.json({ error: 'Security verification failed' }, { status: 400 });
+    }
+
+    // Safety IP ceiling: 60 reports per hour per IP hash (protects against automated script flooding on eduroam)
+    const ipLimit = checkIpRateLimit(clientIp || '127.0.0.1', 60, 60 * 60 * 1000);
+    if (!ipLimit.allowed) {
+      return NextResponse.json(
+        {
+          error: 'Too many reports from this network. Please wait a moment.',
+          rate_limited: true,
+        },
+        { status: 429 }
+      );
     }
 
     // 6. Device hash & rate limiting

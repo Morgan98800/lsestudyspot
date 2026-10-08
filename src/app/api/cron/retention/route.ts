@@ -23,12 +23,15 @@ export async function GET(request: NextRequest) {
     // 1. Purge reports > 12 months, recommendation events > 7 days
     const { deletedReports, deletedEvents } = await SpotsRepository.runDataRetentionPurge();
 
-    // 2. Purge rate limit hashes older than 24 hours
+    // 2. Purge feedback > 12 months, null ip_hash > 24 hours
+    const { deleted: deletedFeedback, nulledIps: nulledFeedbackIps } = await SpotsRepository.purgeOldFeedback();
+
+    // 3. Purge rate limit hashes older than 24 hours
     const purgedRateLimits = purgeOldIpRateLimits(24 * 60 * 60 * 1000);
 
-    // 3. Log counts only (never raw identifiers or personal data)
+    // 4. Log counts only (never raw identifiers or personal data)
     console.log(
-      `[Retention Cron] Purged ${deletedReports} reports (>12m), ${deletedEvents} recommendation events (>7d), ${purgedRateLimits} IP rate-limit entries (>24h)`
+      `[Retention Cron] Purged ${deletedReports} reports (>12m), ${deletedEvents} recommendation events (>7d), ${deletedFeedback} feedback (>12m), nulled ${nulledFeedbackIps} feedback IP hashes (>24h), ${purgedRateLimits} rate-limit entries (>24h)`
     );
 
     return NextResponse.json({
@@ -36,6 +39,8 @@ export async function GET(request: NextRequest) {
       purged: {
         reports: deletedReports,
         recommendationEvents: deletedEvents,
+        feedback: deletedFeedback,
+        nulledFeedbackIps,
         rateLimits: purgedRateLimits,
       },
       timestamp: new Date().toISOString(),

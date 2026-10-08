@@ -14,6 +14,7 @@ import {
   Sliders,
   X,
   FileText,
+  MessageSquare,
 } from 'lucide-react';
 import { AcademicPeriod, AcademicPeriodType, PredictionBucket } from '@/types/database';
 import { DEFAULT_MULTIPLIERS } from '@/lib/algo/calendar';
@@ -308,13 +309,20 @@ export function AdminCalendarPanel({
       {/* Top Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 mb-6 border-b border-[var(--line)]">
         <div>
-          <div className="flex items-center gap-2 mb-1">
+          <div className="flex items-center gap-3 mb-1">
             <Link
               href="/admin"
               className="text-xs font-semibold text-[var(--ink-2)] hover:text-[var(--ink)] inline-flex items-center gap-1"
             >
               <ArrowLeft className="w-3.5 h-3.5" />
               <span>Admin Rooms</span>
+            </Link>
+            <Link
+              href="/admin/feedback"
+              className="text-xs font-semibold text-[var(--ink-2)] hover:text-[var(--ink)] inline-flex items-center gap-1"
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              <span>Feedback</span>
             </Link>
           </div>
           <h1 className="text-2xl font-bold font-heading text-[var(--ink)]">

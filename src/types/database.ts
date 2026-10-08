@@ -126,3 +126,21 @@ export interface ZoneEstimate {
 export interface ZoneWithEstimate extends Zone {
   estimate: ZoneEstimate;
 }
+
+export type FeedbackKind = 'wrong' | 'idea' | 'other';
+export type FeedbackStatus = 'new' | 'seen' | 'done';
+
+export interface Feedback {
+  id: string;
+  created_at: string;
+  kind: FeedbackKind;
+  message: string;
+  email: string | null;
+  page_path: string | null;
+  zone_slug: string | null;
+  app_version: string;
+  status: FeedbackStatus;
+  device_hash: string | null;
+  ip_hash: string | null;
+}
+

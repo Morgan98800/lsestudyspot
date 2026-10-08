@@ -1,5 +1,8 @@
 import {
   AcademicPeriod,
+  Feedback,
+  FeedbackKind,
+  FeedbackStatus,
   HourlyStat,
   OpeningException,
   PredictionBucket,
@@ -28,6 +31,7 @@ interface InMemoryStore {
   openingExceptions: OpeningException[];
   academicPeriods: AcademicPeriod[];
   bucketMultipliers: Record<PredictionBucket, number>;
+  feedbacks: Feedback[];
 }
 
 declare global {
@@ -145,6 +149,7 @@ function initializeStore(): InMemoryStore {
     openingExceptions: [],
     academicPeriods,
     bucketMultipliers: { ...DEFAULT_MULTIPLIERS },
+    feedbacks: [],
   };
   global.__lseSpotsSimpleStore = store;
   return store;
@@ -639,5 +644,120 @@ export class SpotsRepository {
     }
 
     return { deletedReports, deletedEvents };
+  }
+
+  static async createFeedback(item: {
+    kind: FeedbackKind;
+    message: string;
+    email: string | null;
+    page_path: string | null;
+    zone_slug: string | null;
+    app_version: string;
+    device_hash: string | null;
+    ip_hash: string | null;
+  }): Promise<Feedback> {
+    if (!this.store.feedbacks) {
+      this.store.feedbacks = [];
+    }
+
+    const feedback: Feedback = {
+      id: crypto.randomUUID ? crypto.randomUUID() : 'fb_' + Math.random().toString(36).substring(2, 11),
+      created_at: new Date().toISOString(),
+      status: 'new',
+      ...item,
+    };
+
+    this.store.feedbacks.unshift(feedback);
+
+    if (isSupabaseConfigured && supabase) {
+      await supabase.from('feedback').insert(feedback);
+    }
+
+    return feedback;
+  }
+
+  static async getFeedbackList(statusFilter?: FeedbackStatus): Promise<Feedback[]> {
+    if (!this.store.feedbacks) {
+      this.store.feedbacks = [];
+    }
+
+    if (isSupabaseConfigured && supabase) {
+      let query = supabase.from('feedback').select('*').order('created_at', { ascending: false });
+      if (statusFilter) {
+        query = query.eq('status', statusFilter);
+      }
+      const { data, error } = await query;
+      if (!error && data) return data as Feedback[];
+    }
+
+    let items = [...this.store.feedbacks];
+    if (statusFilter) {
+      items = items.filter((f) => f.status === statusFilter);
+    }
+    return items.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  }
+
+  static async updateFeedbackStatus(id: string, status: FeedbackStatus): Promise<Feedback | null> {
+    if (!this.store.feedbacks) {
+      this.store.feedbacks = [];
+    }
+
+    const item = this.store.feedbacks.find((f) => f.id === id);
+    if (item) {
+      item.status = status;
+    }
+
+    if (isSupabaseConfigured && supabase) {
+      await supabase.from('feedback').update({ status }).eq('id', id);
+    }
+
+    return item || null;
+  }
+
+  static async deleteFeedback(id: string): Promise<boolean> {
+    if (!this.store.feedbacks) {
+      this.store.feedbacks = [];
+    }
+
+    const prevLength = this.store.feedbacks.length;
+    this.store.feedbacks = this.store.feedbacks.filter((f) => f.id !== id);
+
+    if (isSupabaseConfigured && supabase) {
+      await supabase.from('feedback').delete().eq('id', id);
+    }
+
+    return this.store.feedbacks.length < prevLength;
+  }
+
+  static async purgeOldFeedback(
+    retentionMs = 365 * 24 * 60 * 60 * 1000,
+    ipHashRetentionMs = 24 * 60 * 60 * 1000
+  ): Promise<{ deleted: number; nulledIps: number }> {
+    if (!this.store.feedbacks) {
+      this.store.feedbacks = [];
+    }
+
+    const now = Date.now();
+    const twelveMonthsAgoIso = new Date(now - retentionMs).toISOString();
+    const twentyFourHoursAgoIso = new Date(now - ipHashRetentionMs).toISOString();
+
+    const initialCount = this.store.feedbacks.length;
+    this.store.feedbacks = this.store.feedbacks.filter((f) => f.created_at >= twelveMonthsAgoIso);
+    const deleted = initialCount - this.store.feedbacks.length;
+
+    let nulledIps = 0;
+    for (const f of this.store.feedbacks) {
+      if (f.created_at < twentyFourHoursAgoIso && f.ip_hash !== null) {
+        f.ip_hash = null;
+        nulledIps++;
+      }
+    }
+
+    if (isSupabaseConfigured && supabase) {
+      await supabase.from('feedback').delete().lt('created_at', twelveMonthsAgoIso);
+      await supabase.from('feedback').update({ ip_hash: null }).lt('created_at', twentyFourHoursAgoIso);
+    }
+
+    return { deleted, nulledIps };
   }
 }

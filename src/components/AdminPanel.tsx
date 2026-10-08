@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { RotateCw, CheckCircle2, Download, Edit3, X, Plus, Trash2, Clock, Calendar } from 'lucide-react';
+import { RotateCw, CheckCircle2, Download, Edit3, X, Plus, Trash2, Clock, Calendar, MessageSquare } from 'lucide-react';
 import { OpeningException, TimeInterval, WeekdayIntervals, WeekdayKey, Zone } from '@/types/database';
 import { normalizeDayIntervals } from '@/lib/algo/opening-hours';
 
@@ -30,6 +30,7 @@ export function AdminPanel({ initialZones, adminSecret }: AdminPanelProps) {
   const [zones, setZones] = useState<Zone[]>(initialZones);
   const [reportVolume, setReportVolume] = useState<Record<string, number>>({});
   const [exceptions, setExceptions] = useState<OpeningException[]>([]);
+  const [newFeedbackCount, setNewFeedbackCount] = useState<number>(0);
   const [actionNotice, setActionNotice] = useState<string | null>(null);
 
   // Edit details modal
@@ -60,6 +61,15 @@ export function AdminPanel({ initialZones, adminSecret }: AdminPanelProps) {
   const [excError, setExcError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const stored = sessionStorage.getItem('lse_admin_unlocked');
+      if (stored === 'true') {
+        setIsAuthenticated(true);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
     if (isAuthenticated) {
       // Fetch metrics
       fetch('/api/admin/metrics')
@@ -76,6 +86,16 @@ export function AdminPanel({ initialZones, adminSecret }: AdminPanelProps) {
           if (data.exceptions) setExceptions(data.exceptions);
         })
         .catch(() => {});
+
+      // Fetch feedback counts
+      fetch('/api/admin/feedback')
+        .then((r) => r.json())
+        .then((data) => {
+          if (data.counts && typeof data.counts.new === 'number') {
+            setNewFeedbackCount(data.counts.new);
+          }
+        })
+        .catch(() => {});
     }
   }, [isAuthenticated]);
 
@@ -84,6 +104,9 @@ export function AdminPanel({ initialZones, adminSecret }: AdminPanelProps) {
     if (secretInput === adminSecret) {
       setIsAuthenticated(true);
       setAuthError(false);
+      if (typeof window !== 'undefined') {
+        sessionStorage.setItem('lse_admin_unlocked', 'true');
+      }
     } else {
       setAuthError(true);
     }
@@ -324,6 +347,18 @@ export function AdminPanel({ initialZones, adminSecret }: AdminPanelProps) {
         </div>
 
         <div className="flex items-center gap-3">
+          <Link
+            href="/admin/feedback"
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-[var(--line)] text-[var(--ink)] hover:bg-[var(--surface-2)] inline-flex items-center gap-1.5"
+          >
+            <MessageSquare className="w-3.5 h-3.5" />
+            <span>Feedback</span>
+            {newFeedbackCount > 0 && (
+              <span className="px-1.5 py-0.2 rounded-full text-[10px] font-bold bg-[var(--brand)] text-[var(--brand-ink)]">
+                {newFeedbackCount}
+              </span>
+            )}
+          </Link>
           <Link
             href="/admin/calendar"
             className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-[var(--line)] text-[var(--ink)] hover:bg-[var(--surface-2)] inline-flex items-center gap-1.5"

@@ -10,10 +10,18 @@ export function OfflineBanner() {
     const handleStatus = () => {
       if (!navigator.onLine) {
         setIsOffline(true);
-        const now = new Date();
-        const timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(
-          now.getMinutes()
-        ).padStart(2, '0')}`;
+        let timeStr = '';
+        try {
+          timeStr = localStorage.getItem('lse_last_sync_time') || '';
+        } catch {
+          // ignore storage errors
+        }
+        if (!timeStr) {
+          const now = new Date();
+          timeStr = `${String(now.getHours()).padStart(2, '0')}:${String(
+            now.getMinutes()
+          ).padStart(2, '0')}`;
+        }
         setOfflineTime(timeStr);
       } else {
         setIsOffline(false);
@@ -39,7 +47,7 @@ export function OfflineBanner() {
   return (
     <div
       role="status"
-      className="fixed top-14 left-0 right-0 z-30 bg-[var(--surface-2)] text-[var(--ink)] text-xs font-semibold py-2 px-4 text-center border-b border-[var(--line)] shadow-xs"
+      className="fixed top-[calc(3.5rem+env(safe-area-inset-top,0px))] left-0 right-0 z-30 bg-[var(--surface-2)] text-[var(--ink)] text-xs font-semibold py-2 px-4 text-center border-b border-[var(--line)] shadow-xs"
     >
       Offline. Showing data from {offlineTime || '14:32'}.
     </div>

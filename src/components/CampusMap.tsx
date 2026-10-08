@@ -253,7 +253,7 @@ export function CampusMap({
           role="dialog"
           aria-modal="true"
           aria-labelledby="sheet-title"
-          className="fixed inset-x-0 bottom-0 z-50 max-h-[48vh] overflow-y-auto bg-[var(--surface)] border-t border-[var(--line)] rounded-t-3xl p-4 sm:p-6 shadow-2xl animate-in slide-in-from-bottom duration-200"
+          className="fixed inset-x-0 bottom-0 z-50 max-h-[50dvh] overflow-y-auto bg-[var(--surface)] border-t border-[var(--line)] rounded-t-3xl p-4 sm:p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] shadow-2xl animate-in slide-in-from-bottom duration-200"
         >
           {/* Grab handle */}
           <div className="w-10 h-1 rounded-full bg-[var(--line)] mx-auto mb-3" />

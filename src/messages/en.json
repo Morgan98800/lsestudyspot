@@ -45,7 +45,7 @@
     "backToApp": "Back to spaces",
     "whoRuns": {
       "heading": "1. Who runs this",
-      "body": "LSE Spots is an independent student project created by students. It is not run by, managed by, or affiliated with the London School of Economics and Political Science (LSE). The data controller for this project is the LSE Spots Student Project Team (contact: privacy@lsespots.app)."
+      "body": "LSE Spots is an independent student project created by students. It is not run by, managed by, or affiliated with the London School of Economics and Political Science (LSE). The data controller for this project is the LSE Spots Student Project Team (contact: morgancanteri15@gmail.com / privacy@lsespots.app)."
     },
     "whatCollect": {
       "heading": "2. What we collect",
@@ -58,27 +58,29 @@
       "tableDevice": "Scrambled device code",
       "tableDeviceDesc": "A one-way hash of a random code on your phone, used to prevent duplicate reports",
       "tableIp": "Temporary network code",
-      "tableIpDesc": "A one-way scrambled hash of part of your network IP address, kept up to 24 hours only to stop automated spam"
+      "tableIpDesc": "A one-way scrambled hash of part of your network IP address, kept up to 24 hours only to stop automated spam",
+      "tableFeedback": "Feedback messages",
+      "tableFeedbackDesc": "If you send feedback: your message, optional reply email, page, and date, used to fix bugs and improve the app (kept 12 months)"
     },
     "whatNotCollect": {
       "heading": "3. What we do not collect",
-      "body": "We do not collect your name, your email address, your LSE student ID, or your university login. We do not access your GPS location, camera, microphone, photos, or contacts. You do not need to create an account, and we do not use advertising or cross-site tracking cookies."
+      "body": "We do not collect your name, your email address (unless you choose to provide it in feedback for a reply), your LSE student ID, or your university login. We do not access your GPS location, camera, microphone, photos, or contacts. You do not need to create an account, and we do not use advertising or cross-site tracking cookies."
     },
     "whyCollect": {
       "heading": "4. Why we collect it",
-      "body": "Under UK data protection laws, we collect this minimal data based on legitimate interests: helping students find available study seats across campus quickly, and preventing spam or abusive submissions from skewing availability."
+      "body": "Under UK data protection laws, we collect this minimal data based on legitimate interests: helping students find available study seats across campus quickly, preventing spam or abusive submissions, and fixing bugs and improving the app when you send feedback."
     },
     "howLong": {
       "heading": "5. How long we keep it",
-      "body": "Individual seat reports are permanently deleted after 12 months. Anonymous hourly statistics (which cannot identify any device) are kept to calculate typical busy hours. Temporary spam-prevention network hashes are deleted within 24 hours. Suggestion routing events are cleared after 7 days."
+      "body": "Individual seat reports are permanently deleted after 12 months. Feedback messages and optional reply emails are deleted after 12 months. Anonymous hourly statistics (which cannot identify any device) are kept to calculate typical busy hours. Temporary spam-prevention network hashes are deleted within 24 hours. Suggestion routing events are cleared after 7 days."
     },
     "whoHandles": {
       "heading": "6. Who else handles it",
-      "body": "Our hosting is provided by Vercel (London / EU region), and our database runs on Supabase (London / EU region). Bot prevention is powered by Cloudflare Turnstile without tracking cookies. Site analytics are cookieless and record no personal data."
+      "body": "Our hosting is provided by Vercel (London / EU region), and our database runs on Supabase (London / EU region). Spam and bot protection is powered by Cloudflare Turnstile without tracking cookies. Optional feedback notifications are relayed via our notification service. Site analytics are cookieless and record no personal data."
     },
     "storage": {
       "heading": "7. Cookies and device storage",
-      "body": "We do not use tracking or advertising cookies. We store a single random identifier in your browser's local storage ('lse_client_random_id') so you cannot submit multiple reports for the same space within 10 minutes. This is strictly necessary to keep our community data honest, meaning no cookie pop-up banner is required."
+      "body": "We do not use tracking or advertising cookies. We store a single random identifier in your browser's local storage ('lse_client_random_id') so you cannot submit multiple reports for the same space within 10 minutes. We also store your visit days and whether you dismissed the install message, on your device only, never sent to us. This is strictly necessary for anti-spam and app functionality, meaning no cookie pop-up banner is required."
     },
     "yourRights": {
       "heading": "8. Your rights",
@@ -93,5 +95,60 @@
     "deleteSuccess": "Deleted {count} reports.",
     "deleteEmpty": "We found no reports from this device.",
     "deleteError": "Could not delete reports. Please try again later."
+  },
+  "notFound": {
+    "heading": "We can't find that page",
+    "text": "The link may be old or mistyped.",
+    "seeFreeSpaces": "See free spaces",
+    "sendFeedback": "Send feedback"
+  },
+  "error": {
+    "heading": "Something went wrong",
+    "text": "It's not you. Try again in a moment.",
+    "tryAgain": "Try again",
+    "seeFreeSpaces": "See free spaces"
+  },
+  "offline": {
+    "heading": "You're offline",
+    "text": "Connect to the internet to see free spaces.",
+    "seeFreeSpaces": "Try reconnecting"
+  },
+  "feedback": {
+    "title": "Send Feedback — LSE Spots",
+    "heading": "Tell us what's wrong or missing",
+    "subline": "We read every message.",
+    "kinds": {
+      "wrong": "Something is wrong",
+      "idea": "I have an idea",
+      "other": "Something else"
+    },
+    "messageLabel": "What happened?",
+    "helpers": {
+      "wrong": "Which space, and what did you see?",
+      "idea": "What would make LSE Spots better?",
+      "other": "What's on your mind?"
+    },
+    "emailLabel": "Your email (only if you want a reply)",
+    "emailHelper": "We only use it to reply to you. Leave it empty to stay anonymous.",
+    "personalNotice": "Please don't include personal details about other people.",
+    "privacyLink": "Privacy",
+    "send": "Send",
+    "sending": "Sending...",
+    "errors": {
+      "minChars": "Please write at least 10 characters.",
+      "maxChars": "Please keep under 500 characters.",
+      "invalidEmail": "Please enter a valid email address.",
+      "generic": "Could not send feedback. Please try again.",
+      "rateLimited": "Too many submissions. Please wait a moment."
+    },
+    "successHeading": "Thanks, we read every message.",
+    "seeFreeSpaces": "See free spaces"
+  },
+  "install": {
+    "title": "Open LSE Spots faster",
+    "subline": "Add it to your home screen.",
+    "button": "Add to home screen",
+    "iosInstructions": "Tap the Share button, then 'Add to Home Screen'.",
+    "close": "Close"
   }
 }

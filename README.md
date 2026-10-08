@@ -147,10 +147,93 @@ npx playwright test --project="Mobile Chrome"
 Validates mobile viewport flows:
 - Home shows answer first ("X spaces have seats").
 - Quiet-only toggle filter.
-- Accordion row expands with 14-bar hourly chart.
 - Campus map view.
 - 1-tap QR submission -> thank you screen -> rate limiting on immediate re-submission.
 - Invalid QR token edge screen.
+- Viewport and safe-area spacing on iPhone 13 & iPhone SE.
+- 404, error boundary, and offline fallback routes.
+- PWA install-to-home-screen prompt and instructions.
+- SEO canonical URLs, robots.txt, and sitemap.xml.
+- Feedback form, live character counter, inline validation, and admin feedback management.
+
+---
+
+## 🚀 The 5 Production Upgrades
+
+### 1. Feedback (`/feedback` + Admin Control)
+- **User Entry Points**:
+  - Persistent text link "Send feedback" next to "Privacy" in the footer of every page (`/`, `/privacy`, `/feedback`, `/404`).
+  - Small text link on the QR thank-you screen after submitting a report (`/feedback?from=/z/[slug]`). Never shown before submitting on the QR page to keep it to the 3 huge reporting buttons.
+- **Form Experience**:
+  - Choice buttons ($\ge 56\text{px}$ touch targets): *"Something is wrong"*, *"I have an idea"*, *"Something else"*.
+  - Textarea with live character counter (10–500 chars) and choice-reactive helper text.
+  - Optional email field for replies ("Leave empty to stay anonymous").
+  - Clear inline error messages next to fields with auto-focus on the first error.
+  - Context auto-attached silently: relative `from` path (sanitized, max 200 chars), zone slug, app version (`v0.1.0`). No raw IP, user agent, or GPS stored.
+- **Anti-Spam & Eduroam Rate Limiting**:
+  - `POST /api/feedback` with Zod validation, honeypot rejection, and optional invisible Cloudflare Turnstile.
+  - Primary rate limit: **3 submissions per hour per device hash**.
+  - Campus Wi-Fi safety ceiling: **60 submissions per hour per IP hash** (protects shared eduroam public IPs while preventing bot flooding). Applied identically to `/api/report`.
+- **Admin Feedback Room (`/admin/feedback`)**:
+  - Password protected via `ADMIN_SECRET` with session persistence.
+  - New feedback counter badge in the admin navigation.
+  - Status filters (*All*, *New*, *Seen*, *Done*).
+  - List newest first with kind badge, status badge, message, context path, zone slug, formatted date, and a `mailto:` link for reply emails.
+  - Action buttons: "Mark seen", "Mark done", and "Delete".
+- **Optional Webhook Alerts**:
+  - When `FEEDBACK_WEBHOOK_URL` is configured, posts a minimal alert: `"New feedback: <kind> - <site_url>/admin/feedback"`. Message text and emails are never forwarded to third parties.
+
+### 2. Link Preview & Social Open Graph Images
+- Dynamic 1200x630 PNG images generated using Next.js `ImageResponse` at `/opengraph-image` and `/twitter-image`.
+- Design: LSE-red background (`#E4002B`), white wordmark *"LSE Spots"*, outlined *"Unofficial"* pill, headline *"Find a free study seat"*, and a white rounded preview panel displaying the 3 status rows (*"Plenty of seats"*, *"Filling up"*, *"Full"*) with inline SVG icons. No LSE logo or crest used.
+- Zero runtime network requests: uses static TTF fonts bundled in the repository (`BricolageGrotesque-Bold.ttf` and `InstrumentSans-Regular.ttf`).
+- Distinct per-page canonical URLs (`/`, `/privacy`, `/feedback`).
+- Robots & SEO: `/robots.txt` and `/sitemap.xml` generated dynamically; `/z/*` and `/admin/*` marked with `noindex, nofollow`.
+
+### 3. Friendly 404, Error Boundary & Offline Pages
+- **404 Page (`app/not-found.tsx`)**: Same branded header bar, clean copy (*"We can't find that page"*, *"The link may be old or mistyped."*), *"See free spaces"* primary button, and *"Send feedback"* link. Returns HTTP 404.
+- **Client Error Boundary (`app/error.tsx`)**: Catches runtime errors gracefully (*"Something went wrong"*, *"It's not you. Try again in a moment."*), logs errors server-side without leaking stack traces or sensitive internals, and offers *"Try again"* (`reset()`) and *"See free spaces"*.
+- **Root Error Boundary (`app/global-error.tsx`)**: Minimal inline-styled fallback rendering its own `<html>` and `<body>` tags if the root layout crashes.
+- **Offline Fallback (`app/offline/page.tsx`)**: Precached by the service worker for uncached routes (*"You're offline. Connect to the internet to see free spaces."*). The home page itself continues to serve cached data with the existing timestamped banner (*"Offline. Showing data from HH:MM."*).
+
+### 4. Install-to-Home-Screen Prompt & PWA Assets
+- **Web App Manifest (`app/manifest.ts` & `public/manifest.json`)**: Name & Short Name *"LSE Spots"*, `start_url: "/?source=pwa"`, `display: "standalone"`, `theme_color: "#E4002B"`, `background_color: "#E4002B"`.
+- **Icon Suite Generated from SVG (`scripts/make-icons.ts`)**:
+  - `icon-192.png` (192x192)
+  - `icon-512.png` (512x512)
+  - `icon-maskable-512.png` (512x512 with glyph centered inside 80% safe zone)
+  - `apple-touch-icon.png` (180x180)
+  - `favicon.ico` (48x48)
+- **Prompt Banner (`src/components/InstallBanner.tsx`)**:
+  - Full-width card positioned above the footer (never a blocking modal, never covering content).
+  - Only appears on the **3rd distinct visit day** OR after a successful report submission on the QR thank-you screen.
+  - Never shown if already installed in standalone mode, during search, or on initial visit.
+  - Android/Chrome: Captures `beforeinstallprompt`, triggers native prompt on button tap.
+  - iOS: Displays platform-native share instructions (*"Tap the Share button, then 'Add to Home Screen'."*). Hidden inside in-app webviews (Instagram, TikTok, LinkedIn, etc.) where home screen installation is unsupported.
+  - 44px close button backs off prompt for 30 days.
+
+### 5. Viewport & Bottom Spacing (Safari Toolbar Fix)
+- Solved the mobile Safari dynamic toolbar overlapping content by switching layout heights from `100vh` to `100dvh`.
+- Global layout adds `pb-[calc(96px+env(safe-area-inset-bottom))]` on `<main>`, guaranteeing the footer is always at least $80\text{px}$ above the viewport bottom.
+- QR report page is exempted via `has-[[data-page='qr']]:pb-0` and uses `min-h-[100dvh] flex flex-col justify-between`.
+- Responsive button heights: $\ge 72\text{px}$ on short displays ($\le 700\text{px}$, e.g. iPhone SE) and $\ge 96\text{px}$ on taller displays ($\ge 701\text{px}$). All 3 buttons fit entirely within the viewport without scrolling.
+- Red header bar extends seamlessly underneath the iOS status bar (`pt-[env(safe-area-inset-top,0px)]` with `apple-mobile-web-app-status-bar-style: "black-translucent"` and `viewport-fit=cover`).
+
+---
+
+## ⚙️ Environment Variables
+
+Configure the following variables in `.env.local` or your hosting provider dashboard:
+
+| Variable | Required? | Default / Example | Purpose |
+| :--- | :--- | :--- | :--- |
+| `NEXT_PUBLIC_SITE_URL` | Recommended | `https://lsestudyspot.vercel.app` | Base URL used for metadata, OpenGraph images, robots.txt, and sitemap.xml. |
+| `ADMIN_SECRET` | Required | `lse_admin_secret_2026` | Secret password required to access `/admin`, `/admin/calendar`, and `/admin/feedback`. |
+| `FEEDBACK_WEBHOOK_URL` | Optional | `https://hooks.slack.com/services/...` | Slack/Discord webhook URL to receive notifications when new feedback is submitted. |
+| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Optional | `0x4AAAAAA...` | Cloudflare Turnstile invisible CAPTCHA site key for feedback & report spam protection. |
+| `TURNSTILE_SECRET_KEY` | Optional | `0x4AAAAAA...` | Cloudflare Turnstile secret key for server-side token validation. |
+| `NEXT_PUBLIC_SUPABASE_URL` | Optional | `https://xyz.supabase.co` | Supabase database URL (in-memory mock store used automatically if omitted). |
+| `SUPABASE_SERVICE_ROLE_KEY` | Optional | `eyJhbGci...` | Supabase service role key for database queries and migrations. |
 
 ---
 
@@ -160,13 +243,16 @@ All unverified campus facts, academic dates, legal controller identities, and in
 
 | Category | Item Marked `TODO_VERIFY` | Current Assumption in Code | Action Required Before Launch |
 | :--- | :--- | :--- | :--- |
-| **Brand Identity** | `--brand` hex color | `#E4002B` | Check against official LSE Design & Brand guidelines manual. |
+| **Production Domain** | `NEXT_PUBLIC_SITE_URL` | `https://lsestudyspot.vercel.app` | Confirm official launch domain (e.g. if pointing to a custom `.ac.uk` or `.app` domain) and update DNS/Vercel settings. |
+| **Contact Email** | Privacy & Feedback Contact | `morgancanteri15@gmail.com` / `privacy@lsespots.app` | Confirm official student project email mailbox and ensure incoming messages are monitored. |
+| **Feedback Alerts** | `FEEDBACK_WEBHOOK_URL` | Unset (silent skip) | Add Slack or Discord incoming webhook URL if real-time admin alert notifications are desired. |
+| **Bot Protection** | Cloudflare Turnstile Keys | Unset (falls back to local rate limiting) | Register production domain in Cloudflare dashboard and set `NEXT_PUBLIC_TURNSTILE_SITE_KEY` & `TURNSTILE_SECRET_KEY`. |
+| **Brand Identity** | `--brand` hex color | `#E4002B` | Check against official LSE Design & Brand guidelines manual. No LSE logo or crest used. |
 | **Data Controller** | Controller Name & Email | LSE Spots Student Project Team, `privacy@lsespots.app` | Confirm student project lead or supervising faculty contact. |
 | **Legal Basis** | GDPR Lawful Basis | Legitimate Interests (UK GDPR Art. 6(1)(f)) | Confirm with university legal adviser or DPO. |
-| **PECR Storage** | Local Storage Random ID | Strictly necessary exemption for anti-spam rate limiting under UK PECR | Confirm with student legal adviser / confirm analytics remain cookieless. |
+| **PECR Storage** | Local Storage Random ID & Visit Counter | Strictly necessary exemption for anti-spam rate limiting and install prompt dismissal under UK PECR | Confirm with student legal adviser / confirm analytics remain cookieless. |
 | **Hosting Region** | Vercel Deployment Region | London (`lhr1`) / EU | Ensure Vercel production project settings specify `lhr1`. |
 | **Database Region** | Supabase Project Region | London (`eu-west-2`) / EU | Ensure Supabase database instance is provisioned in `eu-west-2`. |
-| **Bot Protection** | Cloudflare Turnstile | EU / Global Edge privacy mode | Verify Turnstile widget domain configuration. |
 | **Academic Dates** | Term & Exam Dates 2026/27 | Template rows in `data/academic-periods.template.csv` | Cross-check and verify exact start/end dates against LSE official calendar. |
 | **Cold-Start Multipliers** | Busyness Multipliers | Exam: 1.15, Reading: 1.1, Vacation: 0.6 | Calibrate multipliers against first-term empirical data. |
 | **Library, Floor 1** | Drink policy & PC area | PCs and quiet study, opens 08:30–00:00 | Confirm PC area bottled drink rules with Library desk. |
@@ -180,3 +266,4 @@ All unverified campus facts, academic dates, legal controller identities, and in
 | **Centre Building Atrium** | High counter seating | High counter seating along Houghton St | Check power socket status on counter bar. |
 | **Shaw Library (Old Bldg)** | Power sockets | Oak reading tables have no power | Check if floor plugs were added during recent works. |
 | **Shaw Library (Old Bldg)** | Lunchtime concerts | Reading room closed Thursdays 12:30–14:00 | Confirm lunchtime concert schedule with Old Building reception. |
+
