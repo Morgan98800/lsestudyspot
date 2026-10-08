@@ -1,4 +1,14 @@
-import { HourlyStat, Report, Zone } from '@/types/database';
+import {
+  AcademicPeriod,
+  HourlyStat,
+  OpeningException,
+  PredictionBucket,
+  Report,
+  WeekdayIntervals,
+  Zone,
+} from '@/types/database';
+import { weekdayIntervalsSchema } from '../algo/opening-hours';
+import { DEFAULT_MULTIPLIERS, getPeriod } from '../algo/calendar';
 import { STARTER_ZONES } from '../data/starter-zones';
 import { generateSeedReports } from '../data/seed-reports';
 import { isSupabaseConfigured, supabase } from './supabase';
@@ -15,6 +25,9 @@ interface InMemoryStore {
   reports: Report[];
   hourlyStats: HourlyStat[];
   recommendationEvents: RecommendationEvent[];
+  openingExceptions: OpeningException[];
+  academicPeriods: AcademicPeriod[];
+  bucketMultipliers: Record<PredictionBucket, number>;
 }
 
 declare global {
@@ -22,7 +35,67 @@ declare global {
   var __lseSpotsSimpleStore: InMemoryStore | undefined;
 }
 
-function computeHourlyStats(reports: Report[]): HourlyStat[] {
+const DEFAULT_SAMPLE_PERIODS: AcademicPeriod[] = [
+  {
+    id: 'period_2026_27_1',
+    academic_year: '2026/27',
+    name: 'Michaelmas Term',
+    type: 'teaching',
+    start_date: '2026-09-28',
+    end_date: '2026-12-11',
+    notes: 'TODO_VERIFY: Sample dates - verify against official LSE 2026/27 term calendar',
+  },
+  {
+    id: 'period_2026_27_2',
+    academic_year: '2026/27',
+    name: 'Reading Week (Michaelmas)',
+    type: 'reading',
+    start_date: '2026-11-02',
+    end_date: '2026-11-06',
+    notes: 'TODO_VERIFY: Week 6 reading week',
+  },
+  {
+    id: 'period_2026_27_3',
+    academic_year: '2026/27',
+    name: 'Christmas Vacation',
+    type: 'vacation',
+    start_date: '2026-12-12',
+    end_date: '2027-01-17',
+    notes: 'TODO_VERIFY: Winter university closure and break',
+  },
+  {
+    id: 'period_2026_27_4',
+    academic_year: '2026/27',
+    name: 'Lent Term',
+    type: 'teaching',
+    start_date: '2027-01-18',
+    end_date: '2027-04-02',
+    notes: 'TODO_VERIFY: Lent term teaching period',
+  },
+  {
+    id: 'period_2026_27_5',
+    academic_year: '2026/27',
+    name: 'Spring Vacation',
+    type: 'vacation',
+    start_date: '2027-04-03',
+    end_date: '2027-05-02',
+    notes: 'TODO_VERIFY: Spring Easter break',
+  },
+  {
+    id: 'period_2026_27_6',
+    academic_year: '2026/27',
+    name: 'Spring Exam Period',
+    type: 'exam',
+    start_date: '2027-05-03',
+    end_date: '2027-06-18',
+    notes: 'TODO_VERIFY: Main university examination period',
+  },
+];
+
+function computeHourlyStats(
+  reports: Report[],
+  periods: AcademicPeriod[] = DEFAULT_SAMPLE_PERIODS
+): HourlyStat[] {
   const map: Record<string, { sum: number; count: number }> = {};
 
   for (const r of reports) {
@@ -30,7 +103,9 @@ function computeHourlyStats(reports: Report[]): HourlyStat[] {
     const d = new Date(r.created_at);
     const w = d.getDay();
     const h = d.getHours();
-    const key = `${r.zone_id}_${w}_${h}`;
+    const periodInfo = getPeriod(d, periods);
+    const bucket = periodInfo.bucket;
+    const key = `${r.zone_id}_${bucket}_${w}_${h}`;
     if (!map[key]) map[key] = { sum: 0, count: 0 };
     map[key].sum += r.level;
     map[key].count += 1;
@@ -38,9 +113,10 @@ function computeHourlyStats(reports: Report[]): HourlyStat[] {
 
   const result: HourlyStat[] = [];
   for (const [key, data] of Object.entries(map)) {
-    const [zone_id, wStr, hStr] = key.split('_');
+    const [zone_id, bucketStr, wStr, hStr] = key.split('_');
     result.push({
       zone_id,
+      bucket: bucketStr as PredictionBucket,
       weekday: parseInt(wStr, 10),
       hour: parseInt(hStr, 10),
       avg_level: Number((data.sum / data.count).toFixed(2)),
@@ -58,9 +134,18 @@ function initializeStore(): InMemoryStore {
 
   const zones = JSON.parse(JSON.stringify(STARTER_ZONES)) as Zone[];
   const reports = generateSeedReports(new Date());
-  const hourlyStats = computeHourlyStats(reports);
+  const academicPeriods = [...DEFAULT_SAMPLE_PERIODS];
+  const hourlyStats = computeHourlyStats(reports, academicPeriods);
 
-  const store = { zones, reports, hourlyStats, recommendationEvents: [] };
+  const store: InMemoryStore = {
+    zones,
+    reports,
+    hourlyStats,
+    recommendationEvents: [],
+    openingExceptions: [],
+    academicPeriods,
+    bucketMultipliers: { ...DEFAULT_MULTIPLIERS },
+  };
   global.__lseSpotsSimpleStore = store;
   return store;
 }
@@ -146,6 +231,24 @@ export class SpotsRepository {
     return this.store.hourlyStats.filter((s) => s.zone_id === zoneId);
   }
 
+  static async upsertHourlyStat(stat: HourlyStat): Promise<void> {
+    if (isSupabaseConfigured && supabase) {
+      await supabase.from('hourly_stats').upsert(stat);
+    }
+    const idx = this.store.hourlyStats.findIndex(
+      (s) =>
+        s.zone_id === stat.zone_id &&
+        s.bucket === stat.bucket &&
+        s.weekday === stat.weekday &&
+        s.hour === stat.hour
+    );
+    if (idx >= 0) {
+      this.store.hourlyStats[idx] = stat;
+    } else {
+      this.store.hourlyStats.push(stat);
+    }
+  }
+
   static async createReport(reportData: Omit<Report, 'id' | 'created_at'>): Promise<Report> {
     const newReport: Report = {
       ...reportData,
@@ -226,7 +329,7 @@ export class SpotsRepository {
       this.store.hourlyStats = [];
     } else {
       this.store.reports = generateSeedReports(new Date());
-      this.store.hourlyStats = computeHourlyStats(this.store.reports);
+      this.store.hourlyStats = computeHourlyStats(this.store.reports, this.store.academicPeriods);
     }
   }
 
@@ -277,5 +380,264 @@ export class SpotsRepository {
     }
 
     return result;
+  }
+
+  static async getOpeningExceptions(zoneId?: string): Promise<OpeningException[]> {
+    if (isSupabaseConfigured && supabase) {
+      let query = supabase.from('opening_exceptions').select('*');
+      if (zoneId) {
+        query = query.or(`zone_id.is.null,zone_id.eq.${zoneId}`);
+      }
+      const { data, error } = await query;
+      if (!error && data) return data as OpeningException[];
+    }
+    if (!this.store.openingExceptions) this.store.openingExceptions = [];
+    return zoneId
+      ? this.store.openingExceptions.filter((e) => e.zone_id === null || e.zone_id === zoneId)
+      : this.store.openingExceptions;
+  }
+
+  static async createOpeningException(
+    exception: Omit<OpeningException, 'id' | 'created_at' | 'updated_at'>
+  ): Promise<OpeningException> {
+    const id = `exc-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
+    const now = new Date().toISOString();
+    const newExc: OpeningException = {
+      ...exception,
+      id,
+      created_at: now,
+      updated_at: now,
+    };
+
+    if (isSupabaseConfigured && supabase) {
+      const { data, error } = await supabase
+        .from('opening_exceptions')
+        .insert([newExc])
+        .select()
+        .single();
+      if (!error && data) return data as OpeningException;
+    }
+
+    if (!this.store.openingExceptions) this.store.openingExceptions = [];
+    this.store.openingExceptions.push(newExc);
+    return newExc;
+  }
+
+  static async deleteOpeningException(id: string): Promise<boolean> {
+    if (isSupabaseConfigured && supabase) {
+      const { error } = await supabase.from('opening_exceptions').delete().eq('id', id);
+      if (error) return false;
+    }
+    if (!this.store.openingExceptions) this.store.openingExceptions = [];
+    this.store.openingExceptions = this.store.openingExceptions.filter((e) => e.id !== id);
+    return true;
+  }
+
+  static async updateZoneOpeningHours(
+    zoneId: string,
+    openingHours: WeekdayIntervals
+  ): Promise<Zone | null> {
+    // Validate with zod
+    const validation = weekdayIntervalsSchema.safeParse(openingHours);
+    if (!validation.success) {
+      throw new Error(`Invalid opening hours: ${validation.error.message}`);
+    }
+
+    if (isSupabaseConfigured && supabase) {
+      const { data, error } = await supabase
+        .from('zones')
+        .update({ opening_hours: openingHours, updated_at: new Date().toISOString() })
+        .eq('id', zoneId)
+        .select()
+        .single();
+      if (!error && data) return data as Zone;
+    }
+
+    const zone = this.store.zones.find((z) => z.id === zoneId);
+    if (zone) {
+      zone.opening_hours = openingHours;
+      zone.updated_at = new Date().toISOString();
+      return zone;
+    }
+    return null;
+  }
+
+  static async getAcademicPeriods(): Promise<AcademicPeriod[]> {
+    if (isSupabaseConfigured && supabase) {
+      const { data, error } = await supabase
+        .from('academic_periods')
+        .select('*')
+        .order('start_date', { ascending: true });
+      if (!error && data) return data as AcademicPeriod[];
+    }
+    if (!this.store.academicPeriods) this.store.academicPeriods = [...DEFAULT_SAMPLE_PERIODS];
+    return [...this.store.academicPeriods].sort((a, b) => a.start_date.localeCompare(b.start_date));
+  }
+
+  static async createAcademicPeriod(
+    period: Omit<AcademicPeriod, 'id' | 'created_at' | 'updated_at'> & { id?: string }
+  ): Promise<AcademicPeriod> {
+    const id = period.id || `period_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
+    const now = new Date().toISOString();
+    const newPeriod: AcademicPeriod = {
+      ...period,
+      id,
+      created_at: now,
+      updated_at: now,
+    };
+
+    if (isSupabaseConfigured && supabase) {
+      const { data, error } = await supabase
+        .from('academic_periods')
+        .insert([newPeriod])
+        .select()
+        .single();
+      if (!error && data) return data as AcademicPeriod;
+    }
+
+    if (!this.store.academicPeriods) this.store.academicPeriods = [];
+    this.store.academicPeriods.push(newPeriod);
+    return newPeriod;
+  }
+
+  static async updateAcademicPeriod(
+    id: string,
+    updates: Partial<Omit<AcademicPeriod, 'id' | 'created_at' | 'updated_at'>>
+  ): Promise<AcademicPeriod | null> {
+    if (isSupabaseConfigured && supabase) {
+      const { data, error } = await supabase
+        .from('academic_periods')
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .select()
+        .single();
+      if (!error && data) return data as AcademicPeriod;
+    }
+
+    if (!this.store.academicPeriods) this.store.academicPeriods = [];
+    const idx = this.store.academicPeriods.findIndex((p) => p.id === id);
+    if (idx >= 0) {
+      this.store.academicPeriods[idx] = {
+        ...this.store.academicPeriods[idx],
+        ...updates,
+        updated_at: new Date().toISOString(),
+      };
+      return this.store.academicPeriods[idx];
+    }
+    return null;
+  }
+
+  static async deleteAcademicPeriod(id: string): Promise<boolean> {
+    if (isSupabaseConfigured && supabase) {
+      const { error } = await supabase.from('academic_periods').delete().eq('id', id);
+      if (error) return false;
+    }
+    if (!this.store.academicPeriods) this.store.academicPeriods = [];
+    this.store.academicPeriods = this.store.academicPeriods.filter((p) => p.id !== id);
+    return true;
+  }
+
+  static async getBucketMultipliers(): Promise<Record<PredictionBucket, number>> {
+    if (isSupabaseConfigured && supabase) {
+      const { data, error } = await supabase.from('bucket_multipliers').select('*');
+      if (!error && data && data.length > 0) {
+        const result = { ...DEFAULT_MULTIPLIERS };
+        for (const row of data) {
+          result[row.bucket as PredictionBucket] = Number(row.multiplier);
+        }
+        return result;
+      }
+    }
+    if (!this.store.bucketMultipliers) {
+      this.store.bucketMultipliers = { ...DEFAULT_MULTIPLIERS };
+    }
+    return { ...this.store.bucketMultipliers };
+  }
+
+  static async updateBucketMultipliers(
+    multipliers: Partial<Record<PredictionBucket, number>>
+  ): Promise<Record<PredictionBucket, number>> {
+    if (!this.store.bucketMultipliers) {
+      this.store.bucketMultipliers = { ...DEFAULT_MULTIPLIERS };
+    }
+    this.store.bucketMultipliers = {
+      ...this.store.bucketMultipliers,
+      ...multipliers,
+    };
+
+    if (isSupabaseConfigured && supabase) {
+      for (const [bucket, multiplier] of Object.entries(multipliers)) {
+        if (multiplier !== undefined) {
+          await supabase.from('bucket_multipliers').upsert({
+            bucket,
+            multiplier,
+            updated_at: new Date().toISOString(),
+          });
+        }
+      }
+    }
+
+    return { ...this.store.bucketMultipliers };
+  }
+
+  static async deleteDataByDeviceHashes(
+    hashes: string[]
+  ): Promise<{ deletedReports: number; deletedEvents: number }> {
+    const hashSet = new Set(hashes);
+
+    // In-memory reports purge
+    const initialReportsCount = this.store.reports.length;
+    this.store.reports = this.store.reports.filter((r) => !hashSet.has(r.device_hash));
+    const deletedReports = initialReportsCount - this.store.reports.length;
+
+    // In-memory recommendation events purge
+    const initialEventsCount = (this.store.recommendationEvents || []).length;
+    if (this.store.recommendationEvents) {
+      this.store.recommendationEvents = this.store.recommendationEvents.filter(
+        (e) => !hashSet.has(e.device_hash)
+      );
+    }
+    const deletedEvents = initialEventsCount - (this.store.recommendationEvents || []).length;
+
+    // Supabase
+    if (isSupabaseConfigured && supabase) {
+      for (const h of hashes) {
+        await supabase.from('reports').delete().eq('device_hash', h);
+        await supabase.from('recommendation_events').delete().eq('device_hash', h);
+      }
+    }
+
+    return { deletedReports, deletedEvents };
+  }
+
+  static async runDataRetentionPurge(): Promise<{
+    deletedReports: number;
+    deletedEvents: number;
+  }> {
+    const now = Date.now();
+    const twelveMonthsAgoIso = new Date(now - 365 * 24 * 60 * 60 * 1000).toISOString();
+    const sevenDaysAgoIso = new Date(now - 7 * 24 * 60 * 60 * 1000).toISOString();
+
+    // In-memory reports purge (> 12 months)
+    const initialReports = this.store.reports.length;
+    this.store.reports = this.store.reports.filter((r) => r.created_at >= twelveMonthsAgoIso);
+    const deletedReports = initialReports - this.store.reports.length;
+
+    // In-memory recommendation events purge (> 7 days)
+    const initialEvents = (this.store.recommendationEvents || []).length;
+    if (this.store.recommendationEvents) {
+      this.store.recommendationEvents = this.store.recommendationEvents.filter(
+        (e) => e.created_at >= sevenDaysAgoIso
+      );
+    }
+    const deletedEvents = initialEvents - (this.store.recommendationEvents || []).length;
+
+    // Supabase purge
+    if (isSupabaseConfigured && supabase) {
+      await supabase.from('reports').delete().lt('created_at', twelveMonthsAgoIso);
+      await supabase.from('recommendation_events').delete().lt('created_at', sevenDaysAgoIso);
+    }
+
+    return { deletedReports, deletedEvents };
   }
 }

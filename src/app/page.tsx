@@ -15,10 +15,11 @@ export default async function HomePage({
   const cookieStore = await cookies();
   const cookieNow = cookieStore.get('mock_now')?.value;
 
-  const [zones, reports, sends] = await Promise.all([
+  const [zones, reports, sends, exceptions] = await Promise.all([
     SpotsRepository.getZones(true),
     SpotsRepository.getAllRecentReports(90),
     SpotsRepository.getRecentRecommendationSends(15),
+    SpotsRepository.getOpeningExceptions(),
   ]);
 
   const now = sp.now
@@ -33,7 +34,7 @@ export default async function HomePage({
     zones.map(async (zone) => {
       const stats = await SpotsRepository.getHourlyStatsForZone(zone.id);
       const zoneReports = reports.filter((r) => r.zone_id === zone.id);
-      const estimate = computeZoneEstimate(zone, zoneReports, stats, now);
+      const estimate = computeZoneEstimate(zone, zoneReports, stats, now, exceptions);
       return {
         ...zone,
         estimate,
@@ -41,5 +42,11 @@ export default async function HomePage({
     })
   );
 
-  return <HomeView initialZones={zonesWithEstimates} initialSends={sends} />;
+  return (
+    <HomeView
+      initialZones={zonesWithEstimates}
+      initialSends={sends}
+      serverTime={now.toISOString()}
+    />
+  );
 }

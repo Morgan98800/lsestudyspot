@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { SpotsRepository } from '@/lib/db/repository';
 import { isSupabaseConfigured, supabase } from '@/lib/db/supabase';
 import { APP_CONFIG } from '@/lib/config/env';
+import { getPeriod } from '@/lib/algo/calendar';
+import { PredictionBucket } from '@/types/database';
+
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: NextRequest) {
   const secretParam = request.nextUrl.searchParams.get('secret');
@@ -18,77 +22,68 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase.rpc('recompute_hourly_stats');
-      if (error) {
-        return NextResponse.json({ error: error.message }, { status: 500 });
-      }
-    }
+    // 8 weeks cutoff (56 days)
+    const [reports, zones, periods] = await Promise.all([
+      SpotsRepository.getAllRecentReports(56 * 24 * 60),
+      SpotsRepository.getZones(false),
+      SpotsRepository.getAcademicPeriods(),
+    ]);
 
-    // Also recompute memory store from the last 6 weeks (42 days)
-    const reports = await SpotsRepository.getAllRecentReports(42 * 24 * 60);
-    const zones = await SpotsRepository.getZones(false);
+    const nowMs = Date.now();
+    let totalStatsRows = 0;
 
-    let count = 0;
     for (const zone of zones) {
       const zoneReports = reports.filter((r) => r.zone_id === zone.id && !r.is_flagged);
-      const matrix: Record<string, { sum: number; count: number }> = {};
-      const hourlyAgnostic: Record<number, { sum: number; count: number }> = {};
+
+      // Matrix keyed by: `${bucket}_${weekday}_${hour}`
+      const matrix: Record<string, { weightedSum: number; totalWeight: number; count: number }> = {};
 
       for (const r of zoneReports) {
-        const d = new Date(r.created_at);
-        const w = d.getDay();
-        const h = d.getHours();
-        const key = `${w}_${h}`;
+        const rDate = new Date(r.created_at);
+        const w = rDate.getDay();
+        const h = rDate.getHours();
+        const periodInfo = getPeriod(rDate, periods);
+        const bucket = periodInfo.bucket;
 
-        if (!matrix[key]) matrix[key] = { sum: 0, count: 0 };
-        matrix[key].sum += r.level;
+        // Weight recent weeks more (half-life of 4 weeks)
+        const weeksAgo = Math.max(0, (nowMs - rDate.getTime()) / (7 * 24 * 60 * 60 * 1000));
+        const weight = Math.pow(0.5, weeksAgo / 4);
+
+        const key = `${bucket}_${w}_${h}`;
+        if (!matrix[key]) {
+          matrix[key] = { weightedSum: 0, totalWeight: 0, count: 0 };
+        }
+        matrix[key].weightedSum += r.level * weight;
+        matrix[key].totalWeight += weight;
         matrix[key].count += 1;
-
-        if (!hourlyAgnostic[h]) hourlyAgnostic[h] = { sum: 0, count: 0 };
-        hourlyAgnostic[h].sum += r.level;
-        hourlyAgnostic[h].count += 1;
       }
 
-      for (let w = 0; w <= 6; w++) {
-        for (let h = 0; h <= 23; h++) {
-          const key = `${w}_${h}`;
-          const stat = matrix[key];
-          let avg = 0.4;
-          let nReports = 0;
+      // Upsert rows
+      for (const [key, stat] of Object.entries(matrix)) {
+        const [bucketStr, wStr, hStr] = key.split('_');
+        const avg = stat.totalWeight > 0 ? Number((stat.weightedSum / stat.totalWeight).toFixed(2)) : 0.4;
 
-          if (stat && stat.count >= 5) {
-            avg = Number((stat.sum / stat.count).toFixed(2));
-            nReports = stat.count;
-          } else if (hourlyAgnostic[h] && hourlyAgnostic[h].count > 0) {
-            // Fall back to weekday-agnostic hourly average when n < 5
-            avg = Number((hourlyAgnostic[h].sum / hourlyAgnostic[h].count).toFixed(2));
-            nReports = hourlyAgnostic[h].count;
-          }
-
-          if (isSupabaseConfigured && supabase) {
-            await supabase.from('hourly_stats').upsert({
-              zone_id: zone.id,
-              weekday: w,
-              hour: h,
-              avg_level: avg,
-              n_reports: nReports,
-              updated_at: new Date().toISOString(),
-            });
-          }
-          count++;
-        }
+        await SpotsRepository.upsertHourlyStat({
+          zone_id: zone.id,
+          bucket: bucketStr as PredictionBucket,
+          weekday: parseInt(wStr, 10),
+          hour: parseInt(hStr, 10),
+          avg_level: avg,
+          n_reports: stat.count,
+          updated_at: new Date().toISOString(),
+        });
+        totalStatsRows++;
       }
     }
 
     return NextResponse.json({
       success: true,
-      message: 'Recomputed hourly stats from last 6 weeks',
-      records: count,
+      message: 'Recomputed bucketed hourly stats from last 8 weeks',
+      records: totalStatsRows,
       timestamp: new Date().toISOString(),
     });
-  } catch (err) {
+  } catch (err: any) {
     console.error('Nightly cron error:', err);
-    return NextResponse.json({ error: 'Failed to recompute stats' }, { status: 500 });
+    return NextResponse.json({ error: err.message || 'Failed to recompute stats' }, { status: 500 });
   }
 }

@@ -6,7 +6,7 @@
 LSE has no occupancy sensors. The app combines:
 1. **Proof-of-presence QR codes** placed at physical study zones.
 2. **One-tap crowdsourced reports** (zero accounts, no sign-up, submitted in under 3 seconds).
-3. **Statistical predictions** calculated from historical reports with exponential decay.
+3. **Statistical predictions** calculated from historical reports per academic bucket (teaching weeks, reading weeks, exam periods, vacations) with exponential decay.
 
 ---
 
@@ -18,161 +18,165 @@ The product adheres strictly to two entry points, each with one single job:
 
 ---
 
-## 🎨 Visual System & Design Tokens
+## 🕒 Root Cause & Resolution of the 11:46 Wednesday Bug
 
-- **Brand Token**: `--brand: #E4002B` (TODO_VERIFY against official LSE brand guidelines). Used **strictly** for: header bar, "Quiet spaces only" switch when active, primary buttons, and the current hour bar in the busyness chart. **Never used for a status.**
-- **Light Theme**:
-  - `bg`: `#F6F5F3` | `surface`: `#FFFFFF` | `surface-2`: `#EBE9E6`
-  - `ink`: `#1B1B1D` | `ink-2`: `#55555B` | `line`: `#D9D7D3`
-- **Dark Theme**:
-  - `bg`: `#121214` | `surface`: `#1C1C1F` | `surface-2`: `#2A2A2E`
-  - `ink`: `#F2F2F3` | `ink-2`: `#B0B0B8` | `line`: `#35353A`
-- **Status Colours (WCAG AA text on background pairs)**:
-  - **Plenty of seats** (green): Light `#0B6B49` on `#DAF2E7` | Dark `#5FD3A4` on `#12382B`
-  - **Filling up** (amber): Light `#9C4700` on `#FFE7CA` | Dark `#FFB366` on `#40290F`
-  - **Full** (charcoal): Light `#3A3A3F` on `#E1DFDB` | Dark `#D4D4DA` on `#2C2C31`  
-    *(Full is deliberately charcoal, not red, so it never clashes with the LSE brand red).*
-- **Status Icons**: Outlined circle with check (*Plenty of seats*), half-filled outlined circle (*Filling up*), outlined circle with cross (*Full*).
-- **Predictions**: Drawn with a **dashed outline and no fill**, displaying `"Usual level"` instead of a relative timestamp. Never presented as live data.
-- **Typography**: Bricolage Grotesque (headings, weights 600/800) and Instrument Sans (body). Sentence case everywhere.
+### The Problem
+A live screenshot taken at 11:46 on a Wednesday showed active zones listed as *"Closed now ... (opens 08:00)"*.
 
-## 📐 Design & Product Rules
-- **The Answer Comes First**: On the home page, the first thing under the header is the answer ("X spaces have seats").
-- **Single Filter**: One toggle switch labelled "Quiet spaces only" (`role="switch"`, `aria-checked`). When on, shows only zones with `noise = silent` or `quiet`. Default off. Switch is brand red when on. This is the ONLY filter.
-- **Accordion Content**: Expanded row displays only the prediction note (if prediction), the usual-busy sentence, the 14-bar hourly chart, and the "Looks wrong?" line.
-- **Strict Scope Boundaries**: Do not add search, building selectors, walking times, confidence badges, tag rows, "view spot" buttons, group-room or booking features, attribute tags (power, PCs, quiet), or extra filters. They were deliberately removed. Do not integrate with LSE's room booking system.
+### Root Causes
+1. **Timezone Evaluation**: The server was running in UTC. During British Summer Time (BST = UTC+1), an 11:46 London request evaluated as 10:46 UTC. Earlier functions that inspected client-side or machine-local dates caused day-of-week and hour shifts.
+2. **JavaScript Sunday=0 Indexing**: Standard JS `Date.prototype.getDay()` returns `0` for Sunday and `1` for Monday. When mapping to weekday index arrays without explicit key normalization (`mon..sun`), weekday intervals were shifted by one full day.
+3. **String Time Comparisons & Midnight Handling**: String time comparisons treated `'00:00'` as start-of-day rather than end-of-day (closing at midnight), incorrectly flagging evening and overnight intervals as closed.
+4. **Hardcoded Fallback**: When an opening interval lookup failed, the system fell back to a hardcoded string `opensAt: '08:00'`, hiding the actual schedule.
+
+### The Fix
+- Created a pure, deterministic opening hours engine in `src/lib/algo/opening-hours.ts` (`getOpenState`).
+- All calculations are evaluated strictly on the **server** in the `Europe/London` timezone using **Luxon** (`DateTime.setZone('Europe/London')`).
+- Handled:
+  - Multi-interval opening per day (e.g. `[{"open": "08:00", "close": "12:00"}, {"open": "14:00", "close": "22:00"}]`).
+  - 24-hour continuous opening (`"00:00"` to `"24:00"`).
+  - Overnight spillover intervals where `close < open` (e.g. `18:00` to `02:00` next morning).
+  - Date-specific `opening_exceptions` table (bank holidays, maintenance, exam hours extension).
+  - Clock change transitions (BST start in March and BST end in October 2026).
+- All API responses return `serverTime` (ISO UTC) so the client corrects freshness relative to real server time regardless of the device clock.
 
 ---
 
-## 🚀 Quick Start (Local Development)
+## 📅 Academic Term & Exam Calendar (Predictions)
 
-### 1. Install Dependencies
-```bash
-npm install
-```
+Seat availability patterns differ dramatically between regular teaching weeks, reading weeks, revision/exam periods, and vacations.
 
-### 2. Run Locally
-The app starts with an out-of-the-box in-memory hybrid store seeded with 8 campus zones and 3 weeks of realistic term-time reports:
-```bash
-npm run dev
-```
-Open [http://localhost:3000](http://localhost:3000) in your mobile or desktop browser.
+### Data Model & Period Derivation
+- `academic_periods`: `id`, `academic_year`, `name`, `type` (`teaching` | `reading` | `exam` | `vacation`), `start_date`, `end_date`, `notes`.
+- `getPeriod(date)`: Evaluated in `Europe/London`. Derives a 1-based, Monday-start `termWeek` for `teaching` periods.
+  - Weeks 1–3: `early`
+  - Weeks 4–7: `mid`
+  - Weeks 8+: `late`
+  - Non-teaching periods (`reading`, `exam`, `vacation`) override teaching periods and set `bucket = type`.
 
----
+### 5-Step Prediction Fallback Chain
+Requires $n \ge 5$ reports at each step before falling back:
+1. `zone + bucket + weekday + hour`
+2. `zone + bucket + hour` (across all weekdays)
+3. `zone + weekday + hour` (across all buckets) + *multiplier*
+4. `zone + hour` (across all weekdays and buckets) + *multiplier*
+5. `zone-type default synthetic curve` + *multiplier*
 
-## ⚙️ Environment Variables
+### Cold-Start Multipliers
+When falling back from a bucket with no data (steps 3–5), an admin-configurable multiplier is applied and clamped strictly to $[0.0, 2.0]$:
+- `exam`: `1.15` (spaces fill up earlier and stay fuller)
+- `reading`: `1.10`
+- `vacation`: `0.60`
+- `teaching`: `1.00`
+- Multipliers are **never** applied when real historical data exists (steps 1 and 2).
 
-Copy `.env.example` to `.env.local`:
-```bash
-cp .env.example .env.local
-```
+### Exam Notice
+During the `exam` bucket, an extra line appears in the expanded accordion row:
+*"It's exam period, so spaces fill up earlier."*
 
-| Variable | Description | Default |
-| :--- | :--- | :--- |
-| `NEXT_PUBLIC_APP_URL` | Base domain for links, QR codes, and PWA manifest | `http://localhost:3000` |
-| `NEXT_PUBLIC_SUPABASE_URL` | Supabase URL (optional in dev, activates Postgres mode) | `""` |
-| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase public anon key | `""` |
-| `SUPABASE_SERVICE_ROLE_KEY` | Supabase service role key | `""` |
-| `NEXT_PUBLIC_TURNSTILE_SITE_KEY` | Cloudflare Turnstile public site key | `""` (dev bypass) |
-| `TURNSTILE_SECRET_KEY` | Cloudflare Turnstile secret key | `""` (dev bypass) |
-| `ADMIN_SECRET` | Secret passphrase protecting the `/admin` control room | `lsespots-admin-2026` |
-
----
-
-## 🖨️ Printing Physical QR Signage
-
-Generates printable **A5 Wall Posters** and **A6 Table Stands** with large QR codes ($\ge 3\text{ cm}$, readable from $1\text{ m}$), short fallback links, and the 3-status legend:
-
-```bash
-npm run generate-posters
-```
-Generated PDFs will be in `./dist/posters/`:
-- `library-floor-1_A5_wall.pdf` / `library-floor-1_A6_stand.pdf`
-- `library-floor-2_A5_wall.pdf` / `library-floor-2_A6_stand.pdf`
-- *(and all 8 starter zones)*
-
+### Loading Official LSE Term Dates
 > [!IMPORTANT]
-> **Permission Notice**: Placing physical stickers, wall posters, or acrylic desk stands on campus requires formal authorization from LSE Estates, LSE Library, or the Students' Union (LSESU). Do not place signage without permission.
+> **Action Required Before Public Launch**:
+> Copy the official term dates from LSE's published academic calendar and verify them before launch.
 
----
-
-## 🧪 Testing Suite
-
-### Unit Tests
-Tests live estimate math (20-min exponential decay, 90-min cutoff), bucket thresholds (<0.7 Plenty, <1.4 Filling up, else Full), insight generation, and rate limiter hashing:
+1. Open `data/academic-periods.template.csv`.
+2. Verify or update dates from [LSE Academic Calendar](https://info.lse.ac.uk/current-students/term-dates).
+3. Seed into the database:
 ```bash
-npm test
+npm run seed-calendar
+# Or specify a custom CSV:
+npx tsx scripts/seed-calendar.ts data/academic-periods.template.csv
 ```
-
-### End-to-End Smoke Tests (Playwright)
-Validates mobile flows: home shows answer first, Quiet toggle hides non-quiet spaces, accordion expands, 1-tap QR submission, rate limiting, and invalid token edge state:
-```bash
-npm run test:e2e
-```
-
-### Fake Demo Data Command
-Synthetic reports can be reset or purged with a single command:
-```bash
-# Reset to 3 weeks of term-time demo data
-npm run reset-demo
-
-# Clear all synthetic reports
-npm run reset-demo -- --clear
-```
-
----
-
-## ➕ How to Add a New Study Zone
-
-1. Open `src/lib/data/starter-zones.ts`.
-2. Add the zone definition:
-```typescript
-{
-  id: 'zone-new-spot',
-  slug: 'new-study-spot',
-  name: 'New Academic Building, floor 3',
-  descriptor: 'Silent carrels',
-  building: 'New Academic Building',
-  floor: 'Floor 3',
-  noise: 'silent', // 'silent' | 'quiet' | 'social'
-  has_power: true,
-  has_pcs: false,
-  opening_hours: {
-    mon: { open: '08:30', close: '21:00' },
-    // ...
-  },
-  is_active: true,
-  qr_token: 'qr_tok_new_v1',
-}
-```
-3. Run `npm run generate-posters` to produce the print-ready PDF signage.
-
----
-
-## 📋 VERIFICATION CHECKLIST FOR TODO_VERIFY CAMPUS DATA
-
-No campus facts have been invented. All starter zone names, floor boundaries, acoustic policies, and hours are marked as `TODO_VERIFY` until verified in person on campus:
-
-| Zone | Item Marked `TODO_VERIFY` | Current Assumption in Code | Physical Check Required on Campus |
-| :--- | :--- | :--- | :--- |
-| **Brand Red Token** | `#E4002B` hex color | LSE Red `#E4002B` | Check against official LSE Design & Identity manual. |
-| **Library, floor 1** | Drink policy & PC area | PCs and quiet study, opens 08:30–00:00 | Confirm PC area drink policy with Library service desk. |
-| **Library, floor 1** | Exam hours | Extended 24/7 during Lent exam period | Verify official 24/7 calendar dates. |
-| **Library, floor 2** | Power socket density | Perimeter carrels equipped with power | Inspect socket availability across all perimeter desks. |
-| **Library, floor 2** | Acoustic enforcement | Quiet study policy | Confirm acoustic enforcement level on Floor 2. |
-| **Library, floor 3** | Postgraduate rooms | Silent study; open to all students | Verify if side study rooms require PhD card access. |
-| **Student Centre, floor 2** | Weekend hours | Saw Swee Hock upper floors close 20:00 Sat, 18:00 Sun | Check SU reception desk for term weekend hours. |
-| **Marshall atrium** | Evening access | Ground floor atrium open to general study | Confirm whether tap-in gates apply to atrium after 18:00. |
-| **NAB study seating** | Conference closures | Floor 2 balcony study seating | Check if executive education events close this area. |
-| **Centre Building atrium** | Sockets along glass | High counter seating along Houghton St | Check socket power status along window bar. |
-| **Shaw Library (Old Bldg)** | Power sockets | Oak reading tables have no power | Check if floor plugs were added during recent works. |
-| **Shaw Library (Old Bldg)** | Lunchtime concerts | Reading room closed Thursdays 12:30–14:00 | Confirm lunchtime concert schedule with Old Building reception. |
+4. Or use the web interface at `/admin/calendar` to import CSVs or edit periods directly.
 
 ---
 
 ## 🔒 Privacy & UK GDPR Compliance
 
-- **No Accounts**: Zero sign-up, zero logins, zero names or emails collected.
-- **Pseudonymous Device Hash**: 10-minute rate limit enforced via a one-way SHA-256 hash of a local random ID + coarse `/24` IP prefix. Raw IP addresses are never recorded.
-- **Data Retention**: Raw reports are automatically deleted after 12 months. Only aggregated hourly averages are kept.
-- **No Third-Party Trackers**: No advertising pixels or external analytics beacons.
+### Route `/privacy`
+A plain-English privacy notice written for a general reading age (no dense legal jargon), divided into 9 short sections:
+1. **Who runs this**: Student project, independent and not affiliated with LSE. Contact: `privacy@lsespots.app`.
+2. **What we collect**: Table detailing space reported, busyness level, UTC time, pseudonymous device hash, and temporary 24h spam hash.
+3. **What we do not collect**: No names, emails, LSE credentials, precise GPS locations, camera, microphone, photos, or contacts. No user accounts.
+4. **Why we collect it**: Legitimate interests (seat availability & anti-spam).
+5. **How long we keep it**: Reports permanently deleted after 12 months; spam hashes after 24 hours; suggestion events after 7 days.
+6. **Who else handles it**: Vercel (London / EU), Supabase (London / EU), Cloudflare Turnstile, cookieless analytics.
+7. **Cookies & storage**: One random local storage token (`lse_client_random_id`) strictly necessary for anti-spam rate limiting under UK PECR. No cookie pop-ups.
+8. **Your rights**: Access, rectify, delete data; lodge complaint with ICO (`ico.org.uk`).
+9. **Changes & last updated**: Updated October 2026.
+
+### "Delete my reports from this device" Feature
+- Self-service button on `/privacy`.
+- Calls `POST /api/privacy/delete` transmitting `client_random_id`.
+- The server hashes the ID with the secret salt, deletes all matching reports and recommendation events from the database, and returns the deleted count.
+- Rate-limited to 5 requests per hour per IP hash. Raw IDs are never logged.
+- Clears `lse_client_random_id` from local storage upon completion.
+
+### Automated Retention Purge
+- Automated scheduled endpoint: `GET /api/cron/retention`.
+- Purges raw reports $> 12$ months, recommendation events $> 7$ days, and rate-limit hashes $> 24$ hours.
+- Only logs aggregate counts; never logs personal data.
+- Full details documented in [`docs/privacy-notes.md`](./docs/privacy-notes.md).
+
+---
+
+## 🛠️ Admin Control Room
+
+- `/admin`: Manage zones, rotate QR tokens, inspect reports volume, view weekly opening hours editor with Zod validation, and manage date-specific opening exceptions.
+- `/admin/calendar`: Manage academic periods, import calendar CSVs, and adjust cold-start prediction multipliers.
+- Both routes protected by `ADMIN_SECRET` (configured via environment variable).
+
+---
+
+## 🧪 Testing Suite
+
+### 1. Unit & Regression Tests (54 tests)
+```bash
+npm test
+```
+Covers:
+- `tests/opening-hours.test.ts`: Wednesday 11:46 regression, boundary minutes, overnight intervals, 24h zones, BST March/October clock change transitions, UTC summer requests, and Zod interval validation.
+- `tests/calendar.test.ts`: Period start/end dates, 1-based Monday-start term weeks, bucket assignment, overlap checking, 5-step fallback chain, and multiplier clamping $[0, 2]$.
+- `tests/privacy.test.ts`: Plain English copy completeness, device data deletion, 5/hr rate limiting, and 12-month retention purge.
+- `tests/estimate.test.ts`, `tests/map-color.test.ts`, `tests/recommendation.test.ts`, `tests/search.test.ts`, `tests/outlier.test.ts`, `tests/rate-limiter.test.ts`.
+
+### 2. End-to-End Tests (Playwright)
+```bash
+npx playwright test --project="Mobile Chrome"
+```
+Validates mobile viewport flows:
+- Home shows answer first ("X spaces have seats").
+- Quiet-only toggle filter.
+- Accordion row expands with 14-bar hourly chart.
+- Campus map view.
+- 1-tap QR submission -> thank you screen -> rate limiting on immediate re-submission.
+- Invalid QR token edge screen.
+
+---
+
+## 📋 Complete List of `TODO_VERIFY` Items & Assumptions
+
+All unverified campus facts, academic dates, legal controller identities, and infrastructure assertions are listed below:
+
+| Category | Item Marked `TODO_VERIFY` | Current Assumption in Code | Action Required Before Launch |
+| :--- | :--- | :--- | :--- |
+| **Brand Identity** | `--brand` hex color | `#E4002B` | Check against official LSE Design & Brand guidelines manual. |
+| **Data Controller** | Controller Name & Email | LSE Spots Student Project Team, `privacy@lsespots.app` | Confirm student project lead or supervising faculty contact. |
+| **Legal Basis** | GDPR Lawful Basis | Legitimate Interests (UK GDPR Art. 6(1)(f)) | Confirm with university legal adviser or DPO. |
+| **PECR Storage** | Local Storage Random ID | Strictly necessary exemption for anti-spam rate limiting under UK PECR | Confirm with student legal adviser / confirm analytics remain cookieless. |
+| **Hosting Region** | Vercel Deployment Region | London (`lhr1`) / EU | Ensure Vercel production project settings specify `lhr1`. |
+| **Database Region** | Supabase Project Region | London (`eu-west-2`) / EU | Ensure Supabase database instance is provisioned in `eu-west-2`. |
+| **Bot Protection** | Cloudflare Turnstile | EU / Global Edge privacy mode | Verify Turnstile widget domain configuration. |
+| **Academic Dates** | Term & Exam Dates 2026/27 | Template rows in `data/academic-periods.template.csv` | Cross-check and verify exact start/end dates against LSE official calendar. |
+| **Cold-Start Multipliers** | Busyness Multipliers | Exam: 1.15, Reading: 1.1, Vacation: 0.6 | Calibrate multipliers against first-term empirical data. |
+| **Library, Floor 1** | Drink policy & PC area | PCs and quiet study, opens 08:30–00:00 | Confirm PC area bottled drink rules with Library desk. |
+| **Library, Floor 1** | Exam hours | Extended 24/7 during Lent exam period | Verify official 24/7 opening dates with Library operations. |
+| **Library, Floor 2** | Power socket density | Perimeter carrels equipped with power | Confirm socket coverage across Floor 2 desks. |
+| **Library, Floor 2** | Acoustic policy | Quiet study policy | Confirm acoustic enforcement level. |
+| **Library, Floor 3** | Postgraduate rooms | Silent study; open to all students | Verify if side rooms require postgraduate card access. |
+| **Student Centre, Floor 2** | Weekend hours | Saw Swee Hock upper floors close 20:00 Sat, 18:00 Sun | Check SU reception desk for weekend term hours. |
+| **Marshall Atrium** | Evening access | Ground floor atrium open to general study | Confirm tap-in gate access rules after 18:00. |
+| **NAB Study Seating** | Event closures | Floor 2 balcony study seating | Check if executive education events close this area. |
+| **Centre Building Atrium** | High counter seating | High counter seating along Houghton St | Check power socket status on counter bar. |
+| **Shaw Library (Old Bldg)** | Power sockets | Oak reading tables have no power | Check if floor plugs were added during recent works. |
+| **Shaw Library (Old Bldg)** | Lunchtime concerts | Reading room closed Thursdays 12:30–14:00 | Confirm lunchtime concert schedule with Old Building reception. |

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { SpotsRepository } from '@/lib/db/repository';
 import { generateDeviceHash } from '@/lib/anti-spam/device-hash';
 import { verifyTurnstileToken } from '@/lib/anti-spam/turnstile';
+import { getOpenState } from '@/lib/algo/opening-hours';
 import { BusynessLevel } from '@/types/database';
 
 export async function POST(request: NextRequest) {
@@ -41,6 +42,22 @@ export async function POST(request: NextRequest) {
 
     if (!zone.is_active) {
       return NextResponse.json({ error: 'This study space is currently inactive' }, { status: 400 });
+    }
+
+    // Check if space is currently closed
+    const exceptions = await SpotsRepository.getOpeningExceptions(zone.id);
+    const openState = getOpenState(zone, exceptions, new Date());
+    if (!openState.isOpen) {
+      const opensText = openState.nextOpenAt
+        ? (openState.nextOpenAt.day === 'today' ? openState.nextOpenAt.time : `${openState.nextOpenAt.day} ${openState.nextOpenAt.time}`)
+        : 'later';
+      return NextResponse.json(
+        {
+          error: `This space is closed. It opens at ${opensText}.`,
+          is_closed: true,
+        },
+        { status: 400 }
+      );
     }
 
     // 4. Token validation (proof of presence)

@@ -18,6 +18,8 @@
     },
     "closedPrefix": "Closed now: ",
     "closedItem": "{name} (opens {time})",
+    "closesAtNotice": "Closes at {time}.",
+    "examPeriodNotice": "It's exam period, so spaces fill up earlier.",
     "predictionTag": "Usual level",
     "predictionNote": "No reports in the last 90 minutes, so this is the usual level for now.",
     "correctionHint": "Looks wrong? Scan the QR code at the spot to correct it."
@@ -36,5 +38,60 @@
     "openApp": "Open the app",
     "rateLimited": "You already reported here. You can report again in {mins} min.",
     "spaceClosed": "This space is closed. It opens at {time}."
+  },
+  "privacy": {
+    "title": "Privacy & Your Data",
+    "subtitle": "Short, plain English explaining what we collect and why.",
+    "backToApp": "Back to spaces",
+    "whoRuns": {
+      "heading": "1. Who runs this",
+      "body": "LSE Spots is an independent student project created by students. It is not run by, managed by, or affiliated with the London School of Economics and Political Science (LSE). The data controller for this project is the LSE Spots Student Project Team (contact: privacy@lsespots.app)."
+    },
+    "whatCollect": {
+      "heading": "2. What we collect",
+      "tableZone": "Study space reported",
+      "tableZoneDesc": "The specific room or area you scanned",
+      "tableLevel": "Busyness answer",
+      "tableLevelDesc": "Whether you selected Plenty of seats, Filling up, or Full",
+      "tableTime": "Time of report",
+      "tableTimeDesc": "Timestamp stored in UTC",
+      "tableDevice": "Scrambled device code",
+      "tableDeviceDesc": "A one-way hash of a random code on your phone, used to prevent duplicate reports",
+      "tableIp": "Temporary network code",
+      "tableIpDesc": "A one-way scrambled hash of part of your network IP address, kept up to 24 hours only to stop automated spam"
+    },
+    "whatNotCollect": {
+      "heading": "3. What we do not collect",
+      "body": "We do not collect your name, your email address, your LSE student ID, or your university login. We do not access your GPS location, camera, microphone, photos, or contacts. You do not need to create an account, and we do not use advertising or cross-site tracking cookies."
+    },
+    "whyCollect": {
+      "heading": "4. Why we collect it",
+      "body": "Under UK data protection laws, we collect this minimal data based on legitimate interests: helping students find available study seats across campus quickly, and preventing spam or abusive submissions from skewing availability."
+    },
+    "howLong": {
+      "heading": "5. How long we keep it",
+      "body": "Individual seat reports are permanently deleted after 12 months. Anonymous hourly statistics (which cannot identify any device) are kept to calculate typical busy hours. Temporary spam-prevention network hashes are deleted within 24 hours. Suggestion routing events are cleared after 7 days."
+    },
+    "whoHandles": {
+      "heading": "6. Who else handles it",
+      "body": "Our hosting is provided by Vercel (London / EU region), and our database runs on Supabase (London / EU region). Bot prevention is powered by Cloudflare Turnstile without tracking cookies. Site analytics are cookieless and record no personal data."
+    },
+    "storage": {
+      "heading": "7. Cookies and device storage",
+      "body": "We do not use tracking or advertising cookies. We store a single random identifier in your browser's local storage ('lse_client_random_id') so you cannot submit multiple reports for the same space within 10 minutes. This is strictly necessary to keep our community data honest, meaning no cookie pop-up banner is required."
+    },
+    "yourRights": {
+      "heading": "8. Your rights",
+      "body": "You have the right to view, correct, or delete any data linked to your device, and to lodge a complaint with the UK Information Commissioner's Office (ICO at ico.org.uk). Because we store no names or logins, we can only locate reports made from your current browser."
+    },
+    "lastUpdated": {
+      "heading": "9. Changes and last updated",
+      "body": "If we make changes to how data is handled, we will post an update here. Last updated: October 2026."
+    },
+    "deleteButton": "Delete my reports from this device",
+    "deleting": "Deleting reports...",
+    "deleteSuccess": "Deleted {count} reports.",
+    "deleteEmpty": "We found no reports from this device.",
+    "deleteError": "Could not delete reports. Please try again later."
   }
 }

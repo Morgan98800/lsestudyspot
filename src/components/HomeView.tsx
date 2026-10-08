@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
+import Link from 'next/link';
 import { ChevronDown, ChevronUp, List, Map as MapIcon } from 'lucide-react';
 import { ZoneWithEstimate } from '@/types/database';
 import { SpaceRow } from './SpaceRow';
@@ -15,9 +16,10 @@ import { getBuildingKeyForZone } from '@/lib/algo/map-color';
 interface HomeViewProps {
   initialZones: ZoneWithEstimate[];
   initialSends?: Record<string, number>;
+  serverTime?: string;
 }
 
-export function HomeView({ initialZones, initialSends = {} }: HomeViewProps) {
+export function HomeView({ initialZones, initialSends = {}, serverTime }: HomeViewProps) {
   const [zones, setZones] = useState<ZoneWithEstimate[]>(initialZones);
   const [sends, setSends] = useState<Record<string, number>>(initialSends);
   const [view, setView] = useState<'list' | 'map'>('list');
@@ -426,9 +428,14 @@ export function HomeView({ initialZones, initialSends = {} }: HomeViewProps) {
             </div>
           )}
 
-          {/* 6. FOOTER DISCLAIMER */}
-          <footer className="mt-12 pt-6 border-t border-[var(--line)] text-center text-xs text-[var(--ink-2)]">
-            Student-built, not affiliated with LSE. Estimates only.
+          {/* 6. FOOTER DISCLAIMER & PRIVACY */}
+          <footer className="mt-12 pt-6 pb-[calc(96px+env(safe-area-inset-bottom))] border-t border-[var(--line)] text-center text-xs text-[var(--ink-2)] space-y-2">
+            <p>Student-built, not affiliated with LSE. Estimates only.</p>
+            <div className="flex items-center justify-center gap-3">
+              <Link href="/privacy" className="hover:underline">
+                Privacy
+              </Link>
+            </div>
           </footer>
         </>
       )}

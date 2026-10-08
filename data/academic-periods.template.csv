@@ -1,0 +1,7 @@
+academic_year,name,type,start_date,end_date,notes
+2026/27,Michaelmas Term,teaching,2026-09-28,2026-12-11,TODO_VERIFY: Sample dates - verify against official LSE 2026/27 term calendar
+2026/27,Reading Week (Michaelmas),reading,2026-11-02,2026-11-06,TODO_VERIFY: Week 6 reading week
+2026/27,Christmas Vacation,vacation,2026-12-12,2027-01-17,TODO_VERIFY: Winter university closure and break
+2026/27,Lent Term,teaching,2027-01-18,2027-04-02,TODO_VERIFY: Lent term teaching period
+2026/27,Spring Vacation,vacation,2027-04-03,2027-05-02,TODO_VERIFY: Spring Easter break
+2026/27,Spring Exam Period,exam,2027-05-03,2027-06-18,TODO_VERIFY: Main university examination period

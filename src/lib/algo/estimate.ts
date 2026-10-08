@@ -1,4 +1,16 @@
-import { BusynessLevel, DayHours, HourlyStat, Report, Zone, ZoneEstimate } from '@/types/database';
+import {
+  AcademicPeriod,
+  BusynessLevel,
+  HourlyStat,
+  OpeningException,
+  PredictionBucket,
+  Report,
+  Zone,
+  ZoneEstimate,
+} from '@/types/database';
+import { getOpenState, timeToMinutes } from './opening-hours';
+import { DEFAULT_MULTIPLIERS, getPeriod } from './calendar';
+import { lookupHourlyPrediction } from './prediction';
 
 export const BUCKET_THRESHOLDS = {
   plentyMax: 0.7,
@@ -101,66 +113,26 @@ export function getLondonTime(date: Date = new Date()): LondonDateTime {
  */
 export function checkZoneOpen(
   openingHours: Zone['opening_hours'],
-  now: Date = new Date()
-): { isOpen: boolean; opensAt?: string } {
-  if (!openingHours) {
-    return { isOpen: true }; // Open by default if unconstrained
-  }
-
-  const days: Array<'sun' | 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat'> = [
-    'sun',
-    'mon',
-    'tue',
-    'wed',
-    'thu',
-    'fri',
-    'sat',
-  ];
-
-  const london = getLondonTime(now);
-  const todaySchedule: DayHours | undefined = openingHours[london.weekdayKey];
-
-  if (!todaySchedule || todaySchedule.is_closed) {
-    // Check next open day
-    for (let i = 1; i <= 7; i++) {
-      const nextKey = days[(london.weekdayIndex + i) % 7];
-      const nextSched = openingHours[nextKey];
-      if (nextSched && !nextSched.is_closed) {
-        return { isOpen: false, opensAt: nextSched.open };
-      }
-    }
-    return { isOpen: false, opensAt: '08:00' };
-  }
-
-  const [openH, openM] = todaySchedule.open.split(':').map((x) => parseInt(x, 10));
-  const [closeH, closeM] = todaySchedule.close.split(':').map((x) => parseInt(x, 10));
-
-  const openMinutes = openH * 60 + openM;
-  // 00:00 close means midnight at end of day (24:00 = 1440 min)
-  const closeMinutes = closeH === 0 && closeM === 0 ? 24 * 60 : closeH * 60 + closeM;
-
-  const currentMinutes = london.minutesSinceMidnight;
-
-  // Open strictly between [openMinutes, closeMinutes)
-  // e.g. open at 08:00 means closed at 07:59, open at 08:00
-  if (currentMinutes >= openMinutes && currentMinutes < closeMinutes) {
+  now: Date = new Date(),
+  exceptions: OpeningException[] = []
+): { isOpen: boolean; opensAt?: string; reason?: string } {
+  const state = getOpenState({ id: 'zone', opening_hours: openingHours }, exceptions, now);
+  if (state.isOpen) {
     return { isOpen: true };
   }
 
-  if (currentMinutes < openMinutes) {
-    return { isOpen: false, opensAt: todaySchedule.open };
+  let opensAt = '08:00';
+  if (state.nextOpenAt) {
+    opensAt = state.nextOpenAt.day === 'today'
+      ? state.nextOpenAt.time
+      : `${state.nextOpenAt.day} ${state.nextOpenAt.time}`;
   }
 
-  // After closing, look for the next open day starting from tomorrow
-  for (let i = 1; i <= 7; i++) {
-    const nextKey = days[(london.weekdayIndex + i) % 7];
-    const nextSched = openingHours[nextKey];
-    if (nextSched && !nextSched.is_closed) {
-      return { isOpen: false, opensAt: nextSched.open };
-    }
-  }
-
-  return { isOpen: false, opensAt: todaySchedule.open };
+  return {
+    isOpen: false,
+    opensAt,
+    reason: state.reason,
+  };
 }
 
 /**
@@ -216,57 +188,89 @@ export function computeZoneEstimate(
   zone: Zone,
   recentReports: Report[],
   hourlyStats: HourlyStat[],
-  now: Date = new Date()
+  now: Date = new Date(),
+  exceptions: OpeningException[] = [],
+  periods: AcademicPeriod[] = [],
+  multipliers: Record<PredictionBucket, number> = DEFAULT_MULTIPLIERS
 ): ZoneEstimate {
   const london = getLondonTime(now);
-  const openCheck = checkZoneOpen(zone.opening_hours, now);
+  const openState = getOpenState(zone, exceptions, now);
   const currentHour = london.hour;
   const currentWeekday = london.weekdayIndex;
 
-  // 14 bars (08:00 to 21:00)
+  const periodInfo = getPeriod(now, periods);
+  const currentBucket = periodInfo.bucket;
+  const isExamPeriod = currentBucket === 'exam';
+
+  // 14 bars (08:00 to 21:00) using 5-step fallback chain
   const hourlyBars = Array.from({ length: 14 }).map((_, idx) => {
     const h = idx + 8;
-    // Find stat for today's weekday
-    let stat = hourlyStats.find((s) => s.weekday === currentWeekday && s.hour === h);
-    // Fall back to weekday-agnostic average if n_reports < 5 or missing
-    if (!stat || stat.n_reports < 5) {
-      const allForHour = hourlyStats.filter((s) => s.hour === h);
-      if (allForHour.length > 0) {
-        const sum = allForHour.reduce((acc, curr) => acc + curr.avg_level, 0);
-        stat = {
-          zone_id: zone.id,
-          weekday: currentWeekday,
-          hour: h,
-          avg_level: Number((sum / allForHour.length).toFixed(2)),
-          n_reports: allForHour.reduce((acc, curr) => acc + curr.n_reports, 0),
-        };
-      }
-    }
-
-    const avg = stat ? stat.avg_level : 0.4;
+    const pred = lookupHourlyPrediction(
+      zone.id,
+      currentBucket,
+      currentWeekday,
+      h,
+      hourlyStats,
+      multipliers
+    );
     return {
       hour: h,
-      avg_level: avg,
+      avg_level: pred.avg_level,
       is_current: h === currentHour,
     };
   });
 
-  const insightText = generateInsightText(hourlyStats, currentHour);
+  // Filter stats for current bucket to generate insight text
+  const bucketStats = hourlyStats.filter(
+    (s) => s.zone_id === zone.id && (s.bucket === currentBucket || !s.bucket)
+  );
+  const insightText = generateInsightText(
+    bucketStats.length > 0 ? bucketStats : hourlyStats,
+    currentHour
+  );
 
   // Closed space
-  if (!openCheck.isOpen) {
+  if (!openState.isOpen) {
+    let closedReason = 'closed';
+    let freshnessText = 'Closed';
+    if (openState.nextOpenAt) {
+      const dayPart = openState.nextOpenAt.day === 'today' ? '' : `${openState.nextOpenAt.day} `;
+      closedReason = `opens ${dayPart}${openState.nextOpenAt.time}`;
+      freshnessText = `Closed, opens ${dayPart}${openState.nextOpenAt.time}`;
+    }
+    if (openState.reason) {
+      closedReason += ` — ${openState.reason}`;
+    }
+
     return {
       zone_id: zone.id,
       level: 2, // Full / unavailable
       is_predicted: false,
       is_closed: true,
-      closed_reason: openCheck.opensAt ? `opens ${openCheck.opensAt}` : 'closed today',
+      closed_reason: closedReason,
+      closes_at: null,
+      closes_soon: false,
+      is_exam_period: isExamPeriod,
       updated_at: null,
-      freshness_text: openCheck.opensAt ? `opens ${openCheck.opensAt}` : 'closed',
+      freshness_text: freshnessText,
       minutes_ago: null,
       insight_text: insightText,
       hourly_bars: hourlyBars,
     };
+  }
+
+  // Calculate if space closes within 60 minutes
+  let closesSoon = false;
+  if (openState.closesAt) {
+    const currentM = london.minutesSinceMidnight;
+    const closeM = timeToMinutes(openState.closesAt);
+    let minsUntilClose = closeM - currentM;
+    if (minsUntilClose < 0) {
+      minsUntilClose += 1440; // overnight interval crossing midnight
+    }
+    if (minsUntilClose > 0 && minsUntilClose <= 60) {
+      closesSoon = true;
+    }
   }
 
   // Filter valid reports in the last 90 minutes
@@ -299,6 +303,9 @@ export function computeZoneEstimate(
       level: bucket,
       is_predicted: false,
       is_closed: false,
+      closes_at: openState.closesAt,
+      closes_soon: closesSoon,
+      is_exam_period: isExamPeriod,
       updated_at: latest.created_at,
       freshness_text: formatFreshness(latestDate, now),
       minutes_ago: minsAgo,
@@ -317,6 +324,9 @@ export function computeZoneEstimate(
     level: predictedBucket,
     is_predicted: true,
     is_closed: false,
+    closes_at: openState.closesAt,
+    closes_soon: closesSoon,
+    is_exam_period: isExamPeriod,
     updated_at: null,
     freshness_text: 'Usual level',
     minutes_ago: null,

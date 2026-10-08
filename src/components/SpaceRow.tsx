@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { Clock } from 'lucide-react';
 import { ZoneWithEstimate } from '@/types/database';
 import { StatusSquare } from './StatusIcon';
 import { HourlyChart } from './HourlyChart';
@@ -45,8 +46,11 @@ export function SpaceRow({ zone, isOpen, onToggle }: SpaceRowProps) {
           </div>
         </div>
 
-        {/* Right: Freshness text only */}
-        <div className="shrink-0 text-right">
+        {/* Right: Freshness text or Closed indicator */}
+        <div className="shrink-0 text-right flex items-center justify-end gap-1.5">
+          {estimate.is_closed && (
+            <Clock className="w-3.5 h-3.5 text-[var(--ink-2)]" aria-hidden="true" />
+          )}
           <span
             className={`text-xs font-medium ${
               estimate.is_predicted ? 'text-[var(--ink-2)] italic' : 'text-[var(--ink-2)]'
@@ -65,6 +69,19 @@ export function SpaceRow({ zone, isOpen, onToggle }: SpaceRowProps) {
           aria-labelledby={`row-${zone.id}`}
           className="px-4 pb-5 pt-2 bg-[var(--surface)] flex flex-col gap-3.5 animate-in fade-in duration-150"
         >
+          {/* Closing soon notice (within 60 minutes) */}
+          {estimate.closes_soon && estimate.closes_at && (
+            <p className="text-xs font-medium text-[var(--ink)]">
+              Closes at {estimate.closes_at}.
+            </p>
+          )}
+
+          {/* Exam period notice */}
+          {estimate.is_exam_period && (
+            <p className="text-xs text-[var(--ink-2)]">
+              It&apos;s exam period, so spaces fill up earlier.
+            </p>
+          )}
 
           {/* Prediction banner if prediction */}
           {estimate.is_predicted && (

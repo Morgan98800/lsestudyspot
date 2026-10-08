@@ -30,7 +30,10 @@ export default async function ZonePage({ params, searchParams }: ZonePageProps) 
   const cookieStore = await cookies();
   const cookieNow = cookieStore.get('mock_now')?.value;
 
-  const zone = await SpotsRepository.getZoneBySlug(slug);
+  const [zone, exceptions] = await Promise.all([
+    SpotsRepository.getZoneBySlug(slug),
+    SpotsRepository.getOpeningExceptions(),
+  ]);
 
   if (!zone) {
     notFound();
@@ -45,7 +48,7 @@ export default async function ZonePage({ params, searchParams }: ZonePageProps) 
     : new Date();
 
   const isTokenValid = Boolean(token && token === zone.qr_token);
-  const openCheck = checkZoneOpen(zone.opening_hours, now);
+  const openCheck = checkZoneOpen(zone.opening_hours, now, exceptions);
 
   return (
     <QRReportFlow

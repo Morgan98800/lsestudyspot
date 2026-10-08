@@ -27,10 +27,10 @@ export function QRReportFlow({
   const [clientRandomId, setClientRandomId] = useState<string>('');
 
   useEffect(() => {
-    let id = localStorage.getItem('lse_spots_device_id');
+    let id = localStorage.getItem('lse_client_random_id') || localStorage.getItem('lse_spots_device_id');
     if (!id) {
       id = 'dev_' + Math.random().toString(36).substring(2, 15);
-      localStorage.setItem('lse_spots_device_id', id);
+      localStorage.setItem('lse_client_random_id', id);
     }
     setClientRandomId(id);
   }, []);
@@ -50,6 +50,9 @@ export function QRReportFlow({
           className="w-full min-h-[48px] inline-flex items-center justify-center rounded-xl bg-[var(--brand)] text-[var(--brand-ink)] font-semibold text-base shadow-xs hover:opacity-95 transition-opacity"
         >
           Open the app
+        </Link>
+        <Link href="/privacy" className="text-xs text-[var(--ink-2)] hover:underline mt-4">
+          Privacy
         </Link>
       </main>
     );
@@ -71,6 +74,9 @@ export function QRReportFlow({
         >
           See free spaces
         </Link>
+        <Link href="/privacy" className="text-xs text-[var(--ink-2)] hover:underline mt-4">
+          Privacy
+        </Link>
       </main>
     );
   }
@@ -90,6 +96,9 @@ export function QRReportFlow({
           className="w-full min-h-[48px] inline-flex items-center justify-center rounded-xl bg-[var(--brand)] text-[var(--brand-ink)] font-semibold text-base hover:opacity-95 transition-opacity"
         >
           See free spaces
+        </Link>
+        <Link href="/privacy" className="text-xs text-[var(--ink-2)] hover:underline mt-4">
+          Privacy
         </Link>
       </main>
     );
@@ -187,6 +196,10 @@ export function QRReportFlow({
           >
             Wrong button? Change answer
           </button>
+
+          <Link href="/privacy" className="text-xs text-[var(--ink-2)] hover:underline text-center">
+            Privacy
+          </Link>
         </div>
       </main>
     );
@@ -241,10 +254,13 @@ export function QRReportFlow({
         </button>
       </div>
 
-      {/* Small text at bottom */}
-      <p className="text-xs text-[var(--ink-2)] text-center">
-        No sign-up. Takes 3 seconds.
-      </p>
+      {/* Small text and Privacy link at bottom */}
+      <div className="text-center text-xs text-[var(--ink-2)] space-y-1">
+        <p>No sign-up. Takes 3 seconds.</p>
+        <Link href="/privacy" className="hover:underline text-[11px] opacity-80 inline-block">
+          Privacy
+        </Link>
+      </div>
     </main>
   );
 }

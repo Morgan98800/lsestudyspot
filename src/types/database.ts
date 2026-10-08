@@ -10,6 +10,17 @@ export type BusynessLevel = 0 | 1 | 2; // 0 = Plenty of seats, 1 = Filling up, 2
 
 export type NoiseType = 'silent' | 'quiet' | 'social';
 
+export interface TimeInterval {
+  open: string;  // e.g. "08:00"
+  close: string; // e.g. "22:00", "24:00", or "02:00"
+}
+
+export type WeekdayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
+
+export type WeekdayIntervals = {
+  [K in WeekdayKey]?: TimeInterval[];
+};
+
 export interface DayHours {
   open: string;  // e.g. "08:30"
   close: string; // e.g. "23:00"
@@ -26,6 +37,19 @@ export type WeekdayHours = {
   sun?: DayHours;
 };
 
+export interface OpeningException {
+  id: string;
+  zone_id: string | null;     // null = applies to all zones
+  start_date: string;         // "YYYY-MM-DD"
+  end_date: string;           // "YYYY-MM-DD"
+  is_closed: boolean;
+  open_time: string | null;   // "HH:MM"
+  close_time: string | null;  // "HH:MM"
+  reason: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface Zone {
   id: string;
   slug: string;
@@ -34,7 +58,7 @@ export interface Zone {
   building: string;
   floor: string;
   noise: NoiseType;
-  opening_hours: WeekdayHours | null;
+  opening_hours: WeekdayIntervals | WeekdayHours | null;
   is_active: boolean;
   qr_token: string;
   todo_verify_notes?: string[];
@@ -51,8 +75,31 @@ export interface Report {
   is_flagged: boolean;
 }
 
+export type AcademicPeriodType = 'teaching' | 'reading' | 'exam' | 'vacation';
+export type PredictionBucket = 'early' | 'mid' | 'late' | 'reading' | 'exam' | 'vacation';
+
+export interface AcademicPeriod {
+  id: string;
+  academic_year: string;
+  name: string;
+  type: AcademicPeriodType;
+  start_date: string;
+  end_date: string;
+  notes?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface PeriodInfo {
+  type: AcademicPeriodType;
+  name: string;
+  termWeek: number | null;
+  bucket: PredictionBucket;
+}
+
 export interface HourlyStat {
   zone_id: string;
+  bucket?: PredictionBucket;
   weekday: number; // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
   hour: number;    // 0 - 23
   avg_level: number; // 0.0 to 2.0
@@ -66,8 +113,11 @@ export interface ZoneEstimate {
   is_predicted: boolean;
   is_closed: boolean;
   closed_reason?: string;
+  closes_at?: string | null;
+  closes_soon?: boolean;     // true if closes within 60 minutes
+  is_exam_period?: boolean;  // true if current academic bucket is 'exam'
   updated_at: string | null; // null if predicted
-  freshness_text: string;    // "just now", "9 min ago", or "Usual level"
+  freshness_text: string;    // "just now", "9 min ago", "Closed, opens HH:MM", or "Usual level"
   minutes_ago: number | null;
   insight_text: string;
   hourly_bars: { hour: number; avg_level: number; is_current: boolean }[];
