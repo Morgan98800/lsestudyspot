@@ -121,7 +121,7 @@ export async function generatePosterPdf(
   });
 
   // QR Code (>= 3 cm, readable from 1 m)
-  const baseDomain = options.baseUrl || 'https://lsespots.app';
+  const baseDomain = options.baseUrl || process.env.NEXT_PUBLIC_SITE_URL || 'https://lsestudyspot.vercel.app';
   const qrTargetUrl = `${baseDomain}/z/${zone.slug}?t=${zone.qr_token}`;
 
   const qrPngBuffer = await QRCode.toBuffer(qrTargetUrl, {
@@ -143,8 +143,8 @@ export async function generatePosterPdf(
 
   // Short URL fallback
   currentY -= isA6 ? 16 : 22;
-  const shortCode = zone.slug.split('-')[0] + (zone.floor.match(/\d+/) ? zone.floor.match(/\d+/)![0] : '');
-  const shortUrlText = `Can't scan? Open: lsespots.app/z/${zone.slug}`;
+  const shortDomain = baseDomain.replace(/^https?:\/\//, '');
+  const shortUrlText = `Can't scan? Open: ${shortDomain}/z/${zone.slug}`;
   const shortUrlSize = isA6 ? 8.5 : 11;
   const shortUrlWidth = fontBold.widthOfTextAtSize(shortUrlText, shortUrlSize);
   page.drawText(shortUrlText, {

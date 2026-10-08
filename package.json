@@ -12,7 +12,8 @@
     "generate-posters": "tsx scripts/generate-posters.ts",
     "reset-demo": "tsx scripts/reset-demo.ts",
     "seed-calendar": "tsx scripts/seed-calendar.ts",
-    "make-icons": "tsx scripts/make-icons.ts"
+    "make-icons": "tsx scripts/make-icons.ts",
+    "generate-qr": "tsx scripts/generate-qr.ts"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.3",
