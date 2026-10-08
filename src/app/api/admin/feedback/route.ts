@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { SpotsRepository } from '@/lib/db/repository';
 import { FeedbackStatus } from '@/types/database';
 
+export const dynamic = 'force-dynamic';
+export const revalidate = 0;
+
 export async function GET(req: NextRequest) {
   try {
     const url = new URL(req.url);
@@ -20,7 +23,10 @@ export async function GET(req: NextRequest) {
       feedback = allFeedbacks.filter((f) => f.status === statusParam);
     }
 
-    return NextResponse.json({ success: true, feedback, counts });
+    return NextResponse.json(
+      { success: true, feedback, counts },
+      { headers: { 'Cache-Control': 'no-store, no-cache, must-revalidate, proxy-revalidate' } }
+    );
   } catch (error) {
     console.error('Error fetching feedback:', error);
     return NextResponse.json({ error: 'Failed to fetch feedback' }, { status: 500 });

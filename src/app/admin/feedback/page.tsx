@@ -9,6 +9,7 @@ export const metadata: Metadata = {
 };
 
 export const dynamic = 'force-dynamic';
+export const revalidate = 0;
 
 export default async function AdminFeedbackPage() {
   const feedbacks = await SpotsRepository.getFeedbackList();

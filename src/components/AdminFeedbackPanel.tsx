@@ -16,6 +16,7 @@ import {
   HelpCircle,
   Clock,
   ExternalLink,
+  RotateCw,
 } from 'lucide-react';
 import { Feedback, FeedbackKind, FeedbackStatus } from '@/types/database';
 
@@ -33,6 +34,25 @@ export function AdminFeedbackPanel({ initialFeedbacks, adminSecret }: AdminFeedb
   const [filter, setFilter] = useState<'all' | FeedbackStatus>('all');
   const [actionNotice, setActionNotice] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const refreshData = async () => {
+    setIsRefreshing(true);
+    try {
+      const res = await fetch('/api/admin/feedback', {
+        cache: 'no-store',
+        headers: { 'Cache-Control': 'no-cache' },
+      });
+      const data = await res.json();
+      if (data.success && data.feedback) {
+        setFeedbacks(data.feedback);
+      }
+    } catch (err) {
+      console.error('Failed to refresh feedback:', err);
+    } finally {
+      setIsRefreshing(false);
+    }
+  };
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -43,17 +63,15 @@ export function AdminFeedbackPanel({ initialFeedbacks, adminSecret }: AdminFeedb
     }
   }, []);
 
-  const refreshData = async () => {
-    try {
-      const res = await fetch('/api/admin/feedback');
-      const data = await res.json();
-      if (data.success && data.feedback) {
-        setFeedbacks(data.feedback);
-      }
-    } catch (err) {
-      console.error('Failed to refresh feedback:', err);
+  useEffect(() => {
+    if (isAuthenticated) {
+      refreshData();
+      const interval = setInterval(() => {
+        refreshData();
+      }, 10000);
+      return () => clearInterval(interval);
     }
-  };
+  }, [isAuthenticated]);
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
@@ -63,6 +81,7 @@ export function AdminFeedbackPanel({ initialFeedbacks, adminSecret }: AdminFeedb
       if (typeof window !== 'undefined') {
         sessionStorage.setItem('lse_admin_unlocked', 'true');
       }
+      refreshData();
     } else {
       setAuthError(true);
     }
@@ -251,6 +270,16 @@ export function AdminFeedbackPanel({ initialFeedbacks, adminSecret }: AdminFeedb
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={refreshData}
+            disabled={isRefreshing}
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-[var(--line)] text-[var(--ink)] hover:bg-[var(--surface-2)] inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            title="Refresh feedback list"
+          >
+            <RotateCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <span>{isRefreshing ? 'Refreshing...' : 'Refresh'}</span>
+          </button>
           <Link
             href="/admin"
             className="text-xs font-semibold px-3 py-1.5 rounded-lg border border-[var(--line)] text-[var(--ink)] hover:bg-[var(--surface-2)] inline-flex items-center gap-1.5"
