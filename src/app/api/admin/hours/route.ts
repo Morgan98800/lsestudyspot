@@ -25,8 +25,9 @@ export async function POST(req: NextRequest) {
     }
 
     return NextResponse.json({ success: true, zone: updated });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error updating zone hours:', error);
-    return NextResponse.json({ error: error.message || 'Failed to update hours' }, { status: 500 });
+    const message = error instanceof Error ? error.message : 'Failed to update hours';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

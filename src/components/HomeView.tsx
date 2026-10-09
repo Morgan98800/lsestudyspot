@@ -20,7 +20,7 @@ interface HomeViewProps {
   serverTime?: string;
 }
 
-export function HomeView({ initialZones, initialSends = {}, serverTime }: HomeViewProps) {
+export function HomeView({ initialZones, initialSends = {} }: HomeViewProps) {
   const [zones, setZones] = useState<ZoneWithEstimate[]>(initialZones);
   const [sends, setSends] = useState<Record<string, number>>(initialSends);
   const [view, setView] = useState<'list' | 'map'>('list');
@@ -299,17 +299,22 @@ export function HomeView({ initialZones, initialSends = {}, serverTime }: HomeVi
             </button>
           </div>
 
-          {/* 4. MAIN CONTENT: Map or List */}
-          {view === 'map' ? (
+          {/* 4. MAIN CONTENT: Map or List (both kept mounted for instantaneous tab switching) */}
+          <div className={view === 'map' ? 'block' : 'hidden'} aria-hidden={view !== 'map'}>
             <CampusMap
               zones={zones}
               quietOnly={quietOnly}
               recommendedBuildingKey={recommendedBuildingKey}
               openRowId={openRowId}
               onToggleRow={handleToggleRow}
+              isVisible={view === 'map'}
             />
-          ) : (
-            <div className="flex flex-col gap-6">
+          </div>
+
+          <div
+            className={view === 'list' ? 'flex flex-col gap-6' : 'hidden'}
+            aria-hidden={view !== 'list'}
+          >
               {/* SECTION: PLENTY OF SEATS */}
               {plentyZones.length > 0 && (
                 <section aria-labelledby="section-plenty">
@@ -423,7 +428,6 @@ export function HomeView({ initialZones, initialSends = {}, serverTime }: HomeVi
                 </section>
               )}
             </div>
-          )}
 
           {/* 5. CLOSED NOW: One line of text at the bottom */}
           {closedZones.length > 0 && !quietOnly && (

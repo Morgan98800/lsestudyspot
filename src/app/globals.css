@@ -4,6 +4,8 @@
   /* Brand Token */
   --brand: #E4002B; /* LSE red (TODO_VERIFY against LSE brand guidelines) */
   --brand-ink: #FFFFFF;
+  --brand-text: #D00026;
+  --map-bg: #EAE8E4;
 
   /* Theme Tokens - Light */
   --bg: #F6F5F3;
@@ -26,6 +28,8 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
+    --brand-text: #FF6680;
+    --map-bg: #1A1A1D;
     --bg: #121214;
     --surface: #1C1C1F;
     --surface-2: #2A2A2E;
@@ -45,6 +49,8 @@
 }
 
 :root[data-theme="dark"] {
+  --brand-text: #FF6680;
+  --map-bg: #1A1A1D;
   --bg: #121214;
   --surface: #1C1C1F;
   --surface-2: #2A2A2E;

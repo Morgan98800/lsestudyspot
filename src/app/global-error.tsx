@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect } from 'react';
+import Link from 'next/link';
 
 export default function GlobalError({
   error,
@@ -90,7 +91,7 @@ export default function GlobalError({
             Try again
           </button>
 
-          <a
+          <Link
             href="/"
             style={{
               display: 'inline-flex',
@@ -107,7 +108,7 @@ export default function GlobalError({
             }}
           >
             See free spaces
-          </a>
+          </Link>
         </div>
       </body>
     </html>

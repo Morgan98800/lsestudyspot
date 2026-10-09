@@ -1,4 +1,5 @@
 const CACHE_NAME = 'lse-spots-v2';
+const TILES_CACHE_NAME = 'lse-spots-tiles-v1';
 const PRECACHE_ASSETS = [
   '/',
   '/offline',
@@ -23,7 +24,9 @@ self.addEventListener('activate', (event) => {
   event.waitUntil(
     caches.keys().then((keys) => {
       return Promise.all(
-        keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key))
+        keys
+          .filter((key) => key !== CACHE_NAME && key !== TILES_CACHE_NAME)
+          .map((key) => caches.delete(key))
       );
     })
   );
@@ -69,6 +72,26 @@ self.addEventListener('fetch', (event) => {
             headers: { 'Content-Type': 'application/json' },
           });
         })
+    );
+    return;
+  }
+
+  // Cache-first strategy for map tiles (immutable visual map imagery)
+  if (url.hostname.includes('cartocdn.com') || url.pathname.includes('/rastertiles/')) {
+    event.respondWith(
+      caches.open(TILES_CACHE_NAME).then(async (cache) => {
+        const cached = await cache.match(event.request);
+        if (cached) return cached;
+        try {
+          const networkResponse = await fetch(event.request);
+          if (networkResponse && networkResponse.status === 200) {
+            cache.put(event.request, networkResponse.clone());
+          }
+          return networkResponse;
+        } catch {
+          return new Response('', { status: 408, statusText: 'Tile unavailable' });
+        }
+      })
     );
     return;
   }

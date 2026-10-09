@@ -176,7 +176,7 @@ export function AdminPanel({ initialZones, adminSecret }: AdminPanelProps) {
 
     if (zone.opening_hours) {
       for (const { key } of WEEKDAYS) {
-        const raw = (zone.opening_hours as Record<string, any>)[key];
+        const raw = (zone.opening_hours as Record<string, unknown>)[key];
         initial[key] = normalizeDayIntervals(raw);
       }
     }
@@ -535,7 +535,7 @@ export function AdminPanel({ initialZones, adminSecret }: AdminPanelProps) {
               {/* Weekly summary */}
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-[var(--line)] font-mono text-[11px]">
                 {WEEKDAYS.map(({ key, label }) => {
-                  const raw = (zone.opening_hours as Record<string, any>)?.[key];
+                  const raw = (zone.opening_hours as Record<string, unknown>)?.[key];
                   const intervals = normalizeDayIntervals(raw);
                   return (
                     <div key={key} className="p-2 rounded-lg bg-[var(--surface-2)]">

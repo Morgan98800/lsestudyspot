@@ -92,7 +92,7 @@ export function getLondonTime(date: Date = new Date()): LondonDateTime {
     'sat',
   ];
 
-  const idx = days.indexOf(weekdayStr as any);
+  const idx = days.indexOf(weekdayStr as typeof days[number]);
   const weekdayIndex = idx >= 0 ? idx : 1;
   const weekdayKey = days[weekdayIndex] || 'mon';
   const minutesSinceMidnight = hour * 60 + minute;

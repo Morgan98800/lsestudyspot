@@ -82,8 +82,9 @@ export async function GET(request: NextRequest) {
       records: totalStatsRows,
       timestamp: new Date().toISOString(),
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Nightly cron error:', err);
-    return NextResponse.json({ error: err.message || 'Failed to recompute stats' }, { status: 500 });
+    const message = err instanceof Error ? err.message : 'Failed to recompute stats';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }

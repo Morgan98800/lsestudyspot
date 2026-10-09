@@ -81,7 +81,7 @@ export const weekdayIntervalsSchema = z
   .refine(
     (schedule) => {
       // Validate non-overlapping intervals within each day
-      for (const [day, intervals] of Object.entries(schedule)) {
+      for (const [, intervals] of Object.entries(schedule)) {
         if (!intervals || intervals.length <= 1) continue;
 
         // Convert intervals to ranges for overlap checking
@@ -121,9 +121,9 @@ export function normalizeDayIntervals(raw: unknown): TimeInterval[] {
   }
   // Legacy object format: { open: "08:30", close: "00:00", is_closed?: boolean }
   if (typeof raw === 'object' && raw !== null) {
-    const obj = raw as Record<string, any>;
+    const obj = raw as Record<string, unknown>;
     if (obj.is_closed) return [];
-    if (obj.open && obj.close) {
+    if (typeof obj.open === 'string' && typeof obj.close === 'string') {
       // In legacy format, close: '00:00' meant end of day (24:00)
       const close = obj.close === '00:00' ? '24:00' : obj.close;
       return [{ open: obj.open, close }];
@@ -144,7 +144,7 @@ export function getWeekdayKey(dt: DateTime): WeekdayKey {
  */
 export function getEffectiveIntervalsForDate(
   zoneId: string,
-  openingHours: WeekdayIntervals | Record<string, any> | null | undefined,
+  openingHours: WeekdayIntervals | Record<string, unknown> | null | undefined,
   exceptions: OpeningException[],
   londonDate: DateTime
 ): { intervals: TimeInterval[]; reason?: string } {
@@ -191,7 +191,7 @@ export function getEffectiveIntervalsForDate(
 
   // 2. Regular weekly intervals
   const weekdayKey = getWeekdayKey(londonDate);
-  const rawDay = (openingHours as Record<string, any>)[weekdayKey];
+  const rawDay = (openingHours as Record<string, unknown>)[weekdayKey];
   const intervals = normalizeDayIntervals(rawDay);
 
   return {
@@ -211,7 +211,7 @@ export function getEffectiveIntervalsForDate(
  * Pure function: no side effects, deterministic given inputs.
  */
 export function getOpenState(
-  zone: { id: string; opening_hours: WeekdayIntervals | Record<string, any> | null | undefined },
+  zone: { id: string; opening_hours: WeekdayIntervals | Record<string, unknown> | null | undefined },
   exceptions: OpeningException[] = [],
   nowUtc: Date | DateTime | string = new Date()
 ): OpenState {

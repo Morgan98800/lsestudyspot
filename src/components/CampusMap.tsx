@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useEffect, useRef, useState, useMemo } from 'react';
+import type { Map as LeafletMap, LayerGroup } from 'leaflet';
 import { ZoneWithEstimate } from '@/types/database';
 import {
   BUILDINGS_METADATA,
   computeBuildingSummary,
-  BuildingSummary,
 } from '@/lib/algo/map-color';
 import { SpaceRow } from './SpaceRow';
 
@@ -15,6 +15,7 @@ interface CampusMapProps {
   recommendedBuildingKey: string | null;
   openRowId: string | null;
   onToggleRow: (id: string) => void;
+  isVisible?: boolean;
 }
 
 export function CampusMap({
@@ -23,8 +24,13 @@ export function CampusMap({
   recommendedBuildingKey,
   openRowId,
   onToggleRow,
+  isVisible = true,
 }: CampusMapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
+  const mapInstanceRef = useRef<LeafletMap | null>(null);
+  const markersLayerRef = useRef<LayerGroup | null>(null);
+  const leafletLibRef = useRef<typeof import('leaflet') | null>(null);
+
   const [selectedBuildingKey, setSelectedBuildingKey] = useState<string | null>(null);
   const [leafletReady, setLeafletReady] = useState(false);
   const [leafletError, setLeafletError] = useState(false);
@@ -36,21 +42,25 @@ export function CampusMap({
     });
   }, [zones, quietOnly]);
 
-  // Leaflet initialization
+  // Leaflet map initialization (runs only once on mount)
   useEffect(() => {
-    let mapInstance: any = null;
+    let cancelled = false;
 
     async function initLeaflet() {
-      if (!mapContainerRef.current) return;
+      if (!mapContainerRef.current || mapInstanceRef.current) return;
       try {
-        const L = (await import('leaflet')).default;
+        const leafletModule = await import('leaflet');
+        const L = leafletModule.default || leafletModule;
+        if (cancelled || !mapContainerRef.current) return;
+
+        leafletLibRef.current = L;
 
         const center: [number, number] = [51.5146, -0.1165];
         const southWest: [number, number] = [51.511, -0.122];
         const northEast: [number, number] = [51.518, -0.111];
         const bounds = L.latLngBounds(southWest, northEast);
 
-        mapInstance = L.map(mapContainerRef.current, {
+        const map = L.map(mapContainerRef.current, {
           center,
           zoom: 17,
           minZoom: 16,
@@ -60,43 +70,20 @@ export function CampusMap({
           attributionControl: false,
         });
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          maxZoom: 18,
-        }).addTo(mapInstance);
+        // Fast global CDN tile layer (CartoDB Voyager via Fastly CDN with retina support)
+        L.tileLayer(
+          'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png',
+          {
+            maxZoom: 19,
+            subdomains: 'abcd',
+            attribution:
+              '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+          }
+        ).addTo(map);
 
-        // Add building markers
-        buildings.forEach((b) => {
-          const isTryHere = recommendedBuildingKey === b.buildingKey;
-          const tryHtml = isTryHere
-            ? '<span style="position:absolute;top:-13px;left:50%;transform:translateX(-50%);background:var(--brand);color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.3);">Try here</span>'
-            : '';
-
-          const borderStyle = b.isDashed ? 'dashed' : 'solid';
-          const bgStyle = b.isClosed || b.offReason ? 'var(--surface-2)' : b.bgColor;
-          const fgStyle = b.isClosed || b.offReason ? 'var(--ink-2)' : b.textColor;
-          const subtitle = b.offReason || b.statusLabel;
-
-          const markerHtml = `
-            <div style="position:relative;width:104px;min-height:58px;padding:5px 6px;border-radius:12px;background:${bgStyle};color:${fgStyle};border:3px ${borderStyle} rgba(0,0,0,0.35);text-align:center;box-shadow:0 3px 8px rgba(0,0,0,0.25);font-family:sans-serif;line-height:1.15;cursor:pointer;">
-              ${tryHtml}
-              <div style="font-size:13px;font-weight:800;font-family:'Bricolage Grotesque',sans-serif;">${b.shortName}</div>
-              <div style="font-size:11px;font-weight:700;">${b.bucketWord}</div>
-              <div style="font-size:10.5px;font-weight:500;opacity:0.95;">${subtitle}</div>
-            </div>
-          `;
-
-          const customIcon = L.divIcon({
-            html: markerHtml,
-            className: 'custom-building-marker',
-            iconSize: [104, 58],
-            iconAnchor: [52, 29],
-          });
-
-          const marker = L.marker(b.coordinates, { icon: customIcon }).addTo(mapInstance);
-          marker.on('click', () => {
-            setSelectedBuildingKey(b.buildingKey);
-          });
-        });
+        const markersLayer = L.layerGroup().addTo(map);
+        markersLayerRef.current = markersLayer;
+        mapInstanceRef.current = map;
 
         setLeafletReady(true);
       } catch (err) {
@@ -108,11 +95,68 @@ export function CampusMap({
     initLeaflet();
 
     return () => {
-      if (mapInstance) {
-        mapInstance.remove();
+      cancelled = true;
+      if (mapInstanceRef.current) {
+        mapInstanceRef.current.remove();
+        mapInstanceRef.current = null;
+        markersLayerRef.current = null;
+        leafletLibRef.current = null;
       }
     };
-  }, [buildings, recommendedBuildingKey]);
+  }, []);
+
+  // Update markers whenever building data, recommendation, or leaflet status changes
+  useEffect(() => {
+    const L = leafletLibRef.current;
+    const markersLayer = markersLayerRef.current;
+    if (!L || !markersLayer || !leafletReady) return;
+
+    markersLayer.clearLayers();
+
+    buildings.forEach((b) => {
+      const isTryHere = recommendedBuildingKey === b.buildingKey;
+      const tryHtml = isTryHere
+        ? '<span style="position:absolute;top:-13px;left:50%;transform:translateX(-50%);background:var(--brand);color:#fff;font-size:11px;font-weight:700;padding:2px 8px;border-radius:999px;white-space:nowrap;box-shadow:0 1px 3px rgba(0,0,0,0.3);">Try here</span>'
+        : '';
+
+      const borderStyle = b.isDashed ? 'dashed' : 'solid';
+      const bgStyle = b.isClosed || b.offReason ? 'var(--surface-2)' : b.bgColor;
+      const fgStyle = b.isClosed || b.offReason ? 'var(--ink-2)' : b.textColor;
+      const subtitle = b.offReason || b.statusLabel;
+
+      const markerHtml = `
+        <div style="position:relative;width:104px;min-height:58px;padding:5px 6px;border-radius:12px;background:${bgStyle};color:${fgStyle};border:3px ${borderStyle} rgba(0,0,0,0.35);text-align:center;box-shadow:0 3px 8px rgba(0,0,0,0.25);font-family:sans-serif;line-height:1.15;cursor:pointer;">
+          ${tryHtml}
+          <div style="font-size:13px;font-weight:800;font-family:'Bricolage Grotesque',sans-serif;">${b.shortName}</div>
+          <div style="font-size:11px;font-weight:700;">${b.bucketWord}</div>
+          <div style="font-size:10.5px;font-weight:500;opacity:0.95;">${subtitle}</div>
+        </div>
+      `;
+
+      const customIcon = L.divIcon({
+        html: markerHtml,
+        className: 'custom-building-marker',
+        iconSize: [104, 58],
+        iconAnchor: [52, 29],
+      });
+
+      const marker = L.marker(b.coordinates, { icon: customIcon });
+      marker.on('click', () => {
+        setSelectedBuildingKey(b.buildingKey);
+      });
+      marker.addTo(markersLayer);
+    });
+  }, [buildings, recommendedBuildingKey, leafletReady]);
+
+  // Recalculate map container size whenever visibility becomes true
+  useEffect(() => {
+    if (isVisible && mapInstanceRef.current) {
+      const timer = setTimeout(() => {
+        mapInstanceRef.current?.invalidateSize();
+      }, 50);
+      return () => clearTimeout(timer);
+    }
+  }, [isVisible, leafletReady]);
 
   // Handle ESC to close sheet
   useEffect(() => {

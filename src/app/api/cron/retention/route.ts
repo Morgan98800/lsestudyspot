@@ -45,8 +45,9 @@ export async function GET(request: NextRequest) {
       },
       timestamp: new Date().toISOString(),
     });
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('Retention cron error:', err);
-    return NextResponse.json({ error: err.message || 'Failed to run retention job' }, { status: 500 });
+    const message = err instanceof Error ? err.message : 'Failed to run retention job';
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
